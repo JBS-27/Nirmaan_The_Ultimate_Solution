@@ -1,0 +1,36 @@
+{
+  "url": "http://127.0.0.1:8080/",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "Nirmaan",
+      "hasCanvas": false,
+      "bodyTextLen": 2111,
+      "bodyTextHash": "63f247f59f14445a861b5189fb14403de561de66166414988bb0da4ed941a016",
+      "bodyTextPrefix": "Nirmaan How it works Digital twin Marketplace CONSTRUCTION OS · ",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "Nirmaan",
+      "hasCanvas": false,
+      "bodyTextLen": 2073,
+      "bodyTextHash": "d6271954d1f24fedd896c7d1e72b04ca7128cbc03944a027b83cd7ababf6771c",
+      "bodyTextPrefix": "Nirmaan CONSTRUCTION OS · INDIA FIRST Build the house. See every",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/app-builder-preview.json"
+}
