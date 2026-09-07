@@ -8,53 +8,17 @@ import {
   Wallet,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
+import { PublicHeader } from "@/components/public-header";
 import { Button } from "@/components/ui/button";
 import { SignedIn, SignedOut } from "@/lib/auth/gates";
-import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { money } from "@/lib/format";
 
 export const Route = createFileRoute("/")({ component: Home });
 
-function AuthSlot() {
-  const { user, isPending } = useCurrentUserState();
-  if (isPending) return <div className="h-11 w-24 animate-pulse rounded-md bg-bg-sunken" />;
-  if (user) {
-    return (
-      <Button asChild>
-        <Link to="/app">Open workspace</Link>
-      </Button>
-    );
-  }
-  return (
-    <div className="flex items-center gap-2">
-      <Button asChild variant="ghost">
-        <Link to="/login">Sign in</Link>
-      </Button>
-      <Button asChild>
-        <Link to="/login">Start a project</Link>
-      </Button>
-    </div>
-  );
-}
-
 function Home() {
   return (
     <div className="bg-bg text-ink">
-      <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-line/70 bg-bg/85 px-4 backdrop-blur-md md:px-8">
-        <Logo />
-        <nav className="hidden items-center gap-6 text-sm text-muted md:flex">
-          <a href="#how" className="hover:text-ink">
-            How it works
-          </a>
-          <a href="#twin" className="hover:text-ink">
-            Digital twin
-          </a>
-          <a href="#market" className="hover:text-ink">
-            Marketplace
-          </a>
-        </nav>
-        <AuthSlot />
-      </header>
+      <PublicHeader active="home" />
 
       <section className="relative overflow-hidden">
         <img
@@ -78,7 +42,7 @@ function Home() {
             <div className="mt-8 flex flex-wrap gap-3">
               <SignedOut>
                 <Button asChild size="lg" className="bg-cream text-ink hover:bg-bg">
-                  <Link to="/login">
+                  <Link to="/login" search={{ redirect: "/app/new" }}>
                     Create your site book
                     <ArrowRight className="size-4" />
                   </Link>
@@ -93,7 +57,7 @@ function Home() {
                 </Button>
               </SignedIn>
               <Button asChild size="lg" variant="outline" className="border-cream/30 bg-transparent text-cream hover:bg-cream/10">
-                <a href="#twin">See the twin</a>
+                <Link to="/twin">See the twin</Link>
               </Button>
             </div>
           </div>
@@ -212,7 +176,7 @@ function Home() {
         </div>
         <div className="mt-8">
           <Button asChild variant="outline">
-            <Link to="/login">Browse the market</Link>
+            <Link to="/marketplace">Browse the market</Link>
           </Button>
         </div>
       </section>
@@ -228,12 +192,22 @@ function Home() {
               </p>
             </div>
           </div>
-          <Button asChild size="lg">
-            <Link to="/login">
-              Open Nirmaan
-              <ArrowRight className="size-4" />
-            </Link>
-          </Button>
+          <SignedOut>
+            <Button asChild size="lg">
+              <Link to="/login" search={{ redirect: "/app/new" }}>
+                Open Nirmaan
+                <ArrowRight className="size-4" />
+              </Link>
+            </Button>
+          </SignedOut>
+          <SignedIn>
+            <Button asChild size="lg">
+              <Link to="/app">
+                Open Nirmaan
+                <ArrowRight className="size-4" />
+              </Link>
+            </Button>
+          </SignedIn>
         </div>
       </section>
 

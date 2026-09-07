@@ -36,6 +36,7 @@ function Onboarding() {
           displayName: displayName.trim() || user?.displayName || "Builder",
           city,
           phone: phone || undefined,
+          photoUrl: user?.profileImageUrl ?? undefined,
         },
       });
       navigate({ to: "/app" });

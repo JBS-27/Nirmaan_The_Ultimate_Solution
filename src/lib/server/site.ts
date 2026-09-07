@@ -64,15 +64,18 @@ export const addBill = createServerFn({ method: "POST" })
     notes?: string;
     paid?: boolean;
     ocrText?: string;
+    phaseId?: number;
+    materialId?: number;
   }) => input)
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     await requireOwnedProject(sql, context.userId, data.projectId);
     const rows = await sql<{ id: number }>`
-      insert into bills (project_id, vendor, amount, bill_date, category, notes, paid, ocr_text)
+      insert into bills (project_id, vendor, amount, bill_date, category, notes, paid, ocr_text, phase_id, material_id)
       values (
         ${data.projectId}, ${data.vendor}, ${data.amount}, ${data.billDate},
-        ${data.category}, ${data.notes ?? null}, ${data.paid ?? false}, ${data.ocrText ?? null}
+        ${data.category}, ${data.notes ?? null}, ${data.paid ?? false}, ${data.ocrText ?? null},
+        ${data.phaseId ?? null}, ${data.materialId ?? null}
       ) returning id
     `;
     return { id: rows[0]!.id };

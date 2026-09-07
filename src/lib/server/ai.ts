@@ -1,9 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
+import { answerFromLedger, type LedgerFacts } from "@/lib/assistant-ledger";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import { requireProjectAccess } from "./access";
 import { money, qty } from "@/lib/format";
-import { num } from "@/lib/utils";
+import { num, todayISO } from "@/lib/utils";
 
 async function grokChat(
   messages: { role: "system" | "user" | "assistant"; content: unknown }[],
@@ -29,7 +30,7 @@ async function grokChat(
   return { ok: true, text: body.choices?.[0]?.message?.content ?? "" };
 }
 
-async function projectBrief(projectId: number, userId: string): Promise<string> {
+async function loadLedger(projectId: number, userId: string): Promise<{ brief: string; facts: LedgerFacts }> {
   const sql = await getSql();
   await requireProjectAccess(sql, userId, projectId);
   const [p] = await sql`
@@ -37,22 +38,81 @@ async function projectBrief(projectId: number, userId: string): Promise<string> 
     from projects where id = ${projectId}
   `;
   const phases = await sql`select name, status, progress, estimated_cost, end_date from phases where project_id = ${projectId} order by sort_order`;
-  const mats = await sql`select name, unit, qty_needed, qty_received, qty_used, unit_price from materials where project_id = ${projectId}`;
+  const mats = await sql`select name, category, unit, qty_needed, qty_received, qty_used, unit_price from materials where project_id = ${projectId}`;
   const bills = await sql`select vendor, amount, paid, category from bills where project_id = ${projectId}`;
-  const workers = await sql`select name, skill, daily_rate from workers where project_id = ${projectId}`;
+  const workers = await sql`select id, name, skill, daily_rate from workers where project_id = ${projectId}`;
+  const attendance = await sql`select worker_id, present, work_date from attendance where project_id = ${projectId}`;
+  const payouts = await sql`select worker_id, amount from payouts where project_id = ${projectId}`;
+  const pays = await sql<{ s: number }>`select coalesce(sum(amount),0)::float8 as s from payments where project_id = ${projectId}`;
   const spentBills = bills.filter((b) => b.paid).reduce((s, b) => s + num(b.amount), 0);
+  const payoutSum = payouts.reduce((s, x) => s + num(x.amount), 0);
+  const spent = spentBills + num(pays[0]?.s) + payoutSum;
+  const budget = num(p?.budget);
+  const today = todayISO();
+  const presentToday = attendance.filter((a) => String(a.work_date).slice(0, 10) === today && a.present).length;
+  const workerFacts = workers.map((w) => {
+    const days = attendance.filter((a) => num(a.worker_id) === num(w.id) && a.present).length;
+    const paid = payouts.filter((x) => num(x.worker_id) === num(w.id)).reduce((s, x) => s + num(x.amount), 0);
+    return {
+      name: String(w.name),
+      skill: String(w.skill),
+      dailyRate: num(w.daily_rate),
+      daysPresent: days,
+      pending: Math.max(0, days * num(w.daily_rate) - paid),
+    };
+  });
+  const phaseFacts = phases.map((ph) => ({
+    name: String(ph.name),
+    progress: num(ph.progress),
+    status: String(ph.status),
+    estimatedCost: num(ph.estimated_cost),
+  }));
+  const w = phaseFacts.reduce((s, x) => s + x.estimatedCost, 0) || 1;
+  const progress = Math.round(phaseFacts.reduce((s, x) => s + x.progress * x.estimatedCost, 0) / w);
   const remainingMats = mats.map((m) => {
     const left = Math.max(0, num(m.qty_needed) - num(m.qty_used));
     return `${m.name}: ${qty(left, String(m.unit))} left (need ${qty(num(m.qty_needed), String(m.unit))}, received ${qty(num(m.qty_received), String(m.unit))}, @ ${money(num(m.unit_price))})`;
   });
-  return [
+  const facts: LedgerFacts = {
+    name: String(p?.name ?? "Project"),
+    city: String(p?.city ?? ""),
+    budget,
+    spent,
+    remaining: budget - spent,
+    progress,
+    phases: phaseFacts,
+    materials: mats.map((m) => ({
+      name: String(m.name),
+      category: String(m.category),
+      unit: String(m.unit),
+      qtyNeeded: num(m.qty_needed),
+      qtyReceived: num(m.qty_received),
+      qtyUsed: num(m.qty_used),
+      unitPrice: num(m.unit_price),
+    })),
+    workers: workerFacts,
+    bills: bills.map((b) => ({
+      vendor: String(b.vendor),
+      amount: num(b.amount),
+      paid: Boolean(b.paid),
+      category: String(b.category),
+    })),
+    presentToday,
+  };
+  const brief = [
     `Project ${p?.name} in ${p?.city}, type ${p?.project_type}, ${p?.plot_sqft} sqft plot, ${p?.floors} floors.`,
-    `Budget ${money(num(p?.budget))}. Paid bills so far ${money(spentBills)}. Window ${p?.start_date} → ${p?.target_date}. Status ${p?.status}.`,
+    `Budget ${money(budget)}. Spent ${money(spent)}. Remaining ${money(budget - spent)}. Window ${p?.start_date} → ${p?.target_date}. Status ${p?.status}.`,
     "Phases: " + phases.map((ph) => `${ph.name} ${ph.progress}% (${ph.status}, est ${money(num(ph.estimated_cost))}, due ${ph.end_date})`).join("; "),
     "Materials: " + remainingMats.join(" | "),
-    "Crew: " + workers.map((w) => `${w.name} ${w.skill} ${money(num(w.daily_rate))}/day`).join("; "),
+    "Crew: " + workerFacts.map((wkr) => `${wkr.name} ${wkr.skill} ${money(wkr.dailyRate)}/day, ${wkr.daysPresent} days, pending ${money(wkr.pending)}`).join("; "),
     "Bills: " + bills.map((b) => `${b.vendor} ${money(num(b.amount))} ${b.paid ? "paid" : "unpaid"} (${b.category})`).join("; "),
   ].join("\n");
+  return { brief, facts };
+}
+
+async function projectBrief(projectId: number, userId: string): Promise<string> {
+  const { brief } = await loadLedger(projectId, userId);
+  return brief;
 }
 
 export const askAssistant = createServerFn({ method: "POST" })
@@ -63,9 +123,12 @@ export const askAssistant = createServerFn({ method: "POST" })
     if (!prompt) return { ok: false as const, error: "Ask a question first." };
     const sql = await getSql();
     let brief = "The user has not opened a specific project.";
+    let facts: LedgerFacts | null = null;
     if (data.projectId) {
       try {
-        brief = await projectBrief(data.projectId, context.userId);
+        const loaded = await loadLedger(data.projectId, context.userId);
+        brief = loaded.brief;
+        facts = loaded.facts;
       } catch {
         brief = "Project context unavailable.";
       }
@@ -86,8 +149,9 @@ export const askAssistant = createServerFn({ method: "POST" })
       700,
     );
     if (!result.ok) {
-      const fallback =
-        "I can't reach the model right now. Use the BOQ on the project: remaining cement, steel and bricks are listed under Materials, and unpaid bills sit in Money. Re-ask in a moment.";
+      const fallback = facts
+        ? answerFromLedger(prompt, facts)
+        : "I can't reach the model right now. Open a project in the picker so I can read the BOQ, bills and crew — or re-ask in a moment.";
       await sql`
         insert into ai_messages (user_id, project_id, role, content)
         values (${context.userId}, ${data.projectId ?? null}, 'assistant', ${fallback})

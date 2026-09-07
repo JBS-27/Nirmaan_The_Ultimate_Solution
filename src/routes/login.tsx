@@ -12,9 +12,20 @@ import { APP_NAME } from "@/lib/constants";
 import { money } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/login")({ component: Login });
+export const Route = createFileRoute("/login")({
+  validateSearch: (s: Record<string, unknown>): { redirect?: string } =>
+    typeof s.redirect === "string" && s.redirect.startsWith("/") ? { redirect: s.redirect } : {},
+  component: Login,
+});
+
+function safeRedirect(path?: string) {
+  if (!path || !path.startsWith("/") || path.startsWith("//")) return "/app";
+  return path;
+}
 
 function Login() {
+  const { redirect } = Route.useSearch();
+  const next = safeRedirect(redirect);
   const { user, isPending } = useCurrentUserState();
   const [mode, setMode] = useState<"in" | "up">("in");
   const [email, setEmail] = useState("");
@@ -24,7 +35,13 @@ function Login() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  if (!isPending && user) return <Navigate to="/app" />;
+  if (!isPending && user) {
+    if (next !== "/app" && typeof window !== "undefined") {
+      window.location.replace(next);
+      return null;
+    }
+    return <Navigate to="/app" />;
+  }
 
   async function onEmail(e: React.FormEvent) {
     e.preventDefault();
@@ -38,7 +55,7 @@ function Login() {
         const res = await authClient.signIn.email({ email, password });
         if (res.error) throw new Error(res.error.message || "Could not sign in");
       }
-      window.location.href = "/app";
+      window.location.href = next;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign-in failed");
     } finally {
@@ -114,7 +131,7 @@ function Login() {
                     type="button"
                     variant="outline"
                     className="h-12 w-full justify-between bg-bg px-4"
-                    onClick={() => signIn(p.providerId, { callbackURL: "/app" })}
+                    onClick={() => signIn(p.providerId, { callbackURL: next })}
                   >
                     <span className="inline-flex items-center gap-3">
                       <ProviderMark idp={p.idp} />

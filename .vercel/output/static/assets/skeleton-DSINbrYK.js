@@ -1,0 +1,1 @@
+import{a as e}from"./useNavigate-DrqvhG58.js";import{a as t}from"./button-BQ9ygEDC.js";var n=e();function r({className:e}){return(0,n.jsx)(`div`,{className:t(`animate-pulse rounded-md bg-bg-sunken`,e)})}export{r as t};

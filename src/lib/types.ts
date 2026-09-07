@@ -2,6 +2,8 @@ export type Profile = {
   userId: string;
   role: string;
   displayName: string;
+  email: string | null;
+  photoUrl: string | null;
   phone: string | null;
   city: string | null;
   bio: string | null;
@@ -67,6 +69,8 @@ export type Bill = {
   notes: string | null;
   paid: boolean;
   ocrText: string | null;
+  phaseId: number | null;
+  materialId: number | null;
 };
 
 export type Payment = {

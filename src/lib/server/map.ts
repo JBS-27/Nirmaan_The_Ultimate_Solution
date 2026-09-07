@@ -20,6 +20,8 @@ export function mapProfile(r: Record<string, unknown>): Profile {
     userId: String(r.user_id),
     role: String(r.role),
     displayName: String(r.display_name ?? ""),
+    email: r.email ? String(r.email) : null,
+    photoUrl: r.photo_url ? String(r.photo_url) : null,
     phone: r.phone ? String(r.phone) : null,
     city: r.city ? String(r.city) : null,
     bio: r.bio ? String(r.bio) : null,
@@ -93,6 +95,8 @@ export function mapBill(r: Record<string, unknown>): Bill {
     notes: r.notes ? String(r.notes) : null,
     paid: Boolean(r.paid),
     ocrText: r.ocr_text ? String(r.ocr_text) : null,
+    phaseId: r.phase_id == null ? null : num(r.phase_id),
+    materialId: r.material_id == null ? null : num(r.material_id),
   };
 }
 

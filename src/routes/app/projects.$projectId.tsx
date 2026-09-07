@@ -152,8 +152,19 @@ function ProjectPage() {
   );
 }
 
+function materialLeft(snap: ProjectSnapshot, category: string) {
+  const rows = snap.materials.filter((m) => m.category.toLowerCase() === category.toLowerCase());
+  const needed = rows.reduce((s, m) => s + m.qtyNeeded, 0);
+  const used = rows.reduce((s, m) => s + m.qtyUsed, 0);
+  const received = rows.reduce((s, m) => s + m.qtyReceived, 0);
+  const unit = rows[0]?.unit ?? "";
+  return { left: Math.max(0, needed - used), received, needed, unit };
+}
+
 function Overview({ snap }: { snap: ProjectSnapshot }) {
   const daysLeft = daysBetween(todayISO(), snap.project.targetDate);
+  const cement = materialLeft(snap, "Cement");
+  const steel = materialLeft(snap, "Steel");
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -161,6 +172,18 @@ function Overview({ snap }: { snap: ProjectSnapshot }) {
         <Stat label="Spent" value={compactMoney(snap.spent)} hint={`of ${money(snap.project.budget)}`} />
         <Stat label="Remaining" value={compactMoney(snap.remaining)} hint={snap.remaining < 0 ? "Over envelope" : "In envelope"} danger={snap.remaining < 0} />
         <Stat label="Days to handover" value={String(daysLeft)} hint={daysLeft < 0 ? "Past target" : "On the clock"} danger={daysLeft < 0} />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <Stat
+          label="Cement left"
+          value={qty(cement.left, cement.unit || "bags")}
+          hint={`${qty(cement.received)} received of ${qty(cement.needed)}`}
+        />
+        <Stat
+          label="Steel left"
+          value={qty(steel.left, steel.unit || "kg")}
+          hint={`${qty(steel.received)} received of ${qty(steel.needed)}`}
+        />
       </div>
 
       {snap.risks.length > 0 ? (
@@ -264,6 +287,7 @@ function Materials({ snap, onChange }: { snap: ProjectSnapshot; onChange: () => 
   const [received, setReceived] = useState(0);
   const [used, setUsed] = useState(0);
   const [unitPrice, setUnitPrice] = useState(0);
+  const [supplierName, setSupplierName] = useState("");
 
   const totalNeed = snap.materials.reduce((s, m) => s + m.qtyNeeded * m.unitPrice, 0);
   const totalRecv = snap.materials.reduce((s, m) => s + m.qtyReceived * m.unitPrice, 0);
@@ -279,6 +303,7 @@ function Materials({ snap, onChange }: { snap: ProjectSnapshot; onChange: () => 
           onClick={() => {
             setEditId(undefined);
             setName("");
+            setSupplierName("");
             setOpen(true);
           }}
         >
@@ -310,6 +335,7 @@ function Materials({ snap, onChange }: { snap: ProjectSnapshot; onChange: () => 
                   setUnit(m.unit);
                   setQtyNeeded(m.qtyNeeded);
                   setUnitPrice(m.unitPrice);
+                  setSupplierName(m.supplierName ?? "");
                   setEditId(m.id);
                   setOrdered(m.qtyOrdered);
                   setReceived(m.qtyReceived);
@@ -357,6 +383,7 @@ function Materials({ snap, onChange }: { snap: ProjectSnapshot; onChange: () => 
                   qtyReceived: received,
                   qtyUsed: used,
                   unitPrice,
+                  supplierName: supplierName || undefined,
                 },
               });
               toast.success(editId ? "BOQ updated" : "Added to BOQ");
@@ -381,6 +408,9 @@ function Materials({ snap, onChange }: { snap: ProjectSnapshot; onChange: () => 
                 <Input value={unit} onChange={(e) => setUnit(e.target.value)} />
               </Field>
             </div>
+            <Field label="Supplier">
+              <Input value={supplierName} onChange={(e) => setSupplierName(e.target.value)} placeholder="Annapurna Cement Depot" />
+            </Field>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Qty needed">
                 <Input type="number" value={qtyNeeded} onChange={(e) => setQtyNeeded(Number(e.target.value))} />
@@ -413,11 +443,25 @@ function Crew({ snap, onChange }: { snap: ProjectSnapshot; onChange: () => void 
   const [name, setName] = useState("");
   const [skill, setSkill] = useState("Mason");
   const [rate, setRate] = useState(900);
+  const [hours, setHours] = useState(8);
 
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <p className="text-sm text-muted">Tap present for today. Payouts use days × daily rate.</p>
+        <div className="flex items-center gap-3">
+          <p className="text-sm text-muted">Tap present for today. Payouts use days × daily rate.</p>
+          <label className="hidden items-center gap-2 text-xs text-muted sm:flex">
+            Hours
+            <Input
+              type="number"
+              min={1}
+              max={12}
+              value={hours}
+              onChange={(e) => setHours(Number(e.target.value))}
+              className="h-8 w-16"
+            />
+          </label>
+        </div>
         <Button size="sm" onClick={() => setOpen(true)}>
           <Users className="size-4" />
           Add worker
@@ -456,6 +500,7 @@ function Crew({ snap, onChange }: { snap: ProjectSnapshot; onChange: () => void 
                           projectId: snap.project.id,
                           workerId: w.id,
                           present: !today?.present,
+                          hours,
                           method: "manual",
                         },
                       });
@@ -535,6 +580,8 @@ function Bills({ snap, onChange }: { snap: ProjectSnapshot; onChange: () => void
   const [category, setCategory] = useState("materials");
   const [date, setDate] = useState(todayISO());
   const [notes, setNotes] = useState("");
+  const [phaseId, setPhaseId] = useState<number | "">("");
+  const [materialId, setMaterialId] = useState<number | "">("");
   const [ocrBusy, setOcrBusy] = useState(false);
 
   async function onFile(file: File) {
@@ -569,6 +616,8 @@ function Bills({ snap, onChange }: { snap: ProjectSnapshot; onChange: () => void
                 <p className="font-medium">{b.vendor}</p>
                 <p className="text-xs text-muted">
                   {formatDate(b.billDate)} · {b.category}
+                  {b.phaseId ? ` · ${snap.phases.find((p) => p.id === b.phaseId)?.name ?? "phase"}` : ""}
+                  {b.materialId ? ` · ${snap.materials.find((m) => m.id === b.materialId)?.name ?? "item"}` : ""}
                   {b.notes ? ` · ${b.notes}` : ""}
                 </p>
               </div>
@@ -605,6 +654,8 @@ function Bills({ snap, onChange }: { snap: ProjectSnapshot; onChange: () => void
                 billDate: date,
                 category,
                 notes: notes || undefined,
+                phaseId: phaseId || undefined,
+                materialId: materialId || undefined,
               },
             });
             toast.success("Bill logged");
@@ -641,6 +692,26 @@ function Bills({ snap, onChange }: { snap: ProjectSnapshot; onChange: () => void
               {BILL_CATEGORIES.map((c) => (
                 <option key={c} value={c}>
                   {c}
+                </option>
+              ))}
+            </NativeSelect>
+          </Field>
+          <Field label="Link to phase">
+            <NativeSelect value={phaseId} onChange={(e) => setPhaseId(e.target.value ? Number(e.target.value) : "")}>
+              <option value="">None</option>
+              {snap.phases.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </NativeSelect>
+          </Field>
+          <Field label="Link to material">
+            <NativeSelect value={materialId} onChange={(e) => setMaterialId(e.target.value ? Number(e.target.value) : "")}>
+              <option value="">None</option>
+              {snap.materials.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
                 </option>
               ))}
             </NativeSelect>

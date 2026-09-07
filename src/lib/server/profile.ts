@@ -11,18 +11,28 @@ export const getMyProfile = createServerFn({ method: "GET" })
     const sql = await getSql();
     await ensureCatalog(sql);
     const rows = await sql`select * from profiles where user_id = ${context.userId}`;
-    if (rows[0]) return mapProfile(rows[0]);
-
-    let name = "Builder";
+    let email: string | null = null;
     try {
       const { getSessionUser } = await import("@/lib/auth/verify.server");
       const u = await getSessionUser();
-      if (u?.email) name = u.email.split("@")[0] ?? name;
+      email = u?.email ?? null;
     } catch {
       /* ignore */
     }
+
+    if (rows[0]) {
+      if (email && !rows[0].email) {
+        const updated = await sql`
+          update profiles set email = ${email} where user_id = ${context.userId} returning *
+        `;
+        return mapProfile(updated[0]!);
+      }
+      return mapProfile(rows[0]);
+    }
+
+    const name = email?.split("@")[0] || "Builder";
     const inserted = await sql`
-      insert into profiles (user_id, display_name) values (${context.userId}, ${name})
+      insert into profiles (user_id, display_name, email) values (${context.userId}, ${name}, ${email})
       returning *
     `;
     return mapProfile(inserted[0]!);
@@ -37,19 +47,30 @@ export const saveProfile = createServerFn({ method: "POST" })
     city?: string;
     bio?: string;
     languages?: string;
+    photoUrl?: string;
   }) => input)
   .handler(async ({ context, data }): Promise<Profile> => {
     const sql = await getSql();
     const name = data.displayName.trim() || "Builder";
+    let email: string | null = null;
+    try {
+      const { getSessionUser } = await import("@/lib/auth/verify.server");
+      const u = await getSessionUser();
+      email = u?.email ?? null;
+    } catch {
+      /* ignore */
+    }
     const rows = await sql`
-      insert into profiles (user_id, role, display_name, phone, city, bio, languages, onboarded)
+      insert into profiles (user_id, role, display_name, email, photo_url, phone, city, bio, languages, onboarded)
       values (
-        ${context.userId}, ${data.role}, ${name}, ${data.phone ?? null},
+        ${context.userId}, ${data.role}, ${name}, ${email}, ${data.photoUrl ?? null}, ${data.phone ?? null},
         ${data.city ?? null}, ${data.bio ?? null}, ${data.languages ?? "English, Hindi"}, true
       )
       on conflict (user_id) do update set
         role = excluded.role,
         display_name = excluded.display_name,
+        email = coalesce(excluded.email, profiles.email),
+        photo_url = coalesce(excluded.photo_url, profiles.photo_url),
         phone = excluded.phone,
         city = excluded.city,
         bio = excluded.bio,

@@ -11,8 +11,12 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppRouteImport } from './routes/app'
+import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as MarketplaceRouteImport } from './routes/marketplace'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
+import { Route as ProjectsRouteImport } from './routes/projects'
+import { Route as TwinRouteImport } from './routes/twin'
 import { Route as AppIndexRouteImport } from './routes/app/index'
 import { Route as AppAccountRouteImport } from './routes/app/account'
 import { Route as AppAdminRouteImport } from './routes/app/admin'
@@ -33,14 +37,34 @@ const AppRoute = AppRouteImport.update({
   path: '/app',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MarketplaceRoute = MarketplaceRouteImport.update({
+  id: '/marketplace',
+  path: '/marketplace',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OnboardingRoute = OnboardingRouteImport.update({
   id: '/onboarding',
   path: '/onboarding',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProjectsRoute = ProjectsRouteImport.update({
+  id: '/projects',
+  path: '/projects',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TwinRoute = TwinRouteImport.update({
+  id: '/twin',
+  path: '/twin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppIndexRoute = AppIndexRouteImport.update({
@@ -92,8 +116,12 @@ const AppProjectsProjectIdRoute = AppProjectsProjectIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
+  '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
+  '/marketplace': typeof MarketplaceRoute
   '/onboarding': typeof OnboardingRoute
+  '/projects': typeof ProjectsRoute
+  '/twin': typeof TwinRoute
   '/app/account': typeof AppAccountRoute
   '/app/admin': typeof AppAdminRoute
   '/app/assistant': typeof AppAssistantRoute
@@ -106,8 +134,12 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
+  '/marketplace': typeof MarketplaceRoute
   '/onboarding': typeof OnboardingRoute
+  '/projects': typeof ProjectsRoute
+  '/twin': typeof TwinRoute
   '/app/account': typeof AppAccountRoute
   '/app/admin': typeof AppAdminRoute
   '/app/assistant': typeof AppAssistantRoute
@@ -122,8 +154,12 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
+  '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
+  '/marketplace': typeof MarketplaceRoute
   '/onboarding': typeof OnboardingRoute
+  '/projects': typeof ProjectsRoute
+  '/twin': typeof TwinRoute
   '/app/account': typeof AppAccountRoute
   '/app/admin': typeof AppAdminRoute
   '/app/assistant': typeof AppAssistantRoute
@@ -139,8 +175,12 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/app'
+    | '/dashboard'
     | '/login'
+    | '/marketplace'
     | '/onboarding'
+    | '/projects'
+    | '/twin'
     | '/app/account'
     | '/app/admin'
     | '/app/assistant'
@@ -153,8 +193,12 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/dashboard'
     | '/login'
+    | '/marketplace'
     | '/onboarding'
+    | '/projects'
+    | '/twin'
     | '/app/account'
     | '/app/admin'
     | '/app/assistant'
@@ -168,8 +212,12 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/app'
+    | '/dashboard'
     | '/login'
+    | '/marketplace'
     | '/onboarding'
+    | '/projects'
+    | '/twin'
     | '/app/account'
     | '/app/admin'
     | '/app/assistant'
@@ -184,8 +232,12 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRouteWithChildren
+  DashboardRoute: typeof DashboardRoute
   LoginRoute: typeof LoginRoute
+  MarketplaceRoute: typeof MarketplaceRoute
   OnboardingRoute: typeof OnboardingRoute
+  ProjectsRoute: typeof ProjectsRoute
+  TwinRoute: typeof TwinRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
@@ -205,6 +257,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -212,11 +271,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/marketplace': {
+      id: '/marketplace'
+      path: '/marketplace'
+      fullPath: '/marketplace'
+      preLoaderRoute: typeof MarketplaceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/onboarding': {
       id: '/onboarding'
       path: '/onboarding'
       fullPath: '/onboarding'
       preLoaderRoute: typeof OnboardingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/projects': {
+      id: '/projects'
+      path: '/projects'
+      fullPath: '/projects'
+      preLoaderRoute: typeof ProjectsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/twin': {
+      id: '/twin'
+      path: '/twin'
+      fullPath: '/twin'
+      preLoaderRoute: typeof TwinRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/app/': {
@@ -322,8 +402,12 @@ const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRouteWithChildren,
+  DashboardRoute: DashboardRoute,
   LoginRoute: LoginRoute,
+  MarketplaceRoute: MarketplaceRoute,
   OnboardingRoute: OnboardingRoute,
+  ProjectsRoute: ProjectsRoute,
+  TwinRoute: TwinRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport

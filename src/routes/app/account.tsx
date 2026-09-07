@@ -45,13 +45,37 @@ function Account() {
         action={<UserButton />}
       />
       <Card className="max-w-lg p-5">
-        <p className="text-sm text-muted">{user?.primaryEmail ?? "Signed in"}</p>
+        <div className="flex items-center gap-3">
+          {user?.profileImageUrl || p?.photoUrl ? (
+            <img
+              src={user?.profileImageUrl || p?.photoUrl || ""}
+              alt=""
+              className="size-12 rounded-full object-cover outline outline-1 -outline-offset-1 outline-line"
+            />
+          ) : (
+            <span className="grid size-12 place-items-center rounded-full bg-forest-soft font-display text-lg text-forest">
+              {(displayName || user?.displayName || "?").slice(0, 1).toUpperCase()}
+            </span>
+          )}
+          <div>
+            <p className="font-medium">{displayName || user?.displayName || "Signed in"}</p>
+            <p className="text-sm text-muted">{user?.primaryEmail || p?.email || "No email on this session"}</p>
+          </div>
+        </div>
         <form
           className="mt-4 space-y-3"
           onSubmit={async (e) => {
             e.preventDefault();
             await saveProfile({
-              data: { displayName, role, city, phone: phone || undefined, bio: bio || undefined, languages },
+              data: {
+                displayName,
+                role,
+                city,
+                phone: phone || undefined,
+                bio: bio || undefined,
+                languages,
+                photoUrl: user?.profileImageUrl ?? undefined,
+              },
             });
             toast.success("Profile saved");
             q.reload();
