@@ -7,7 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { PHASE_TEMPLATES } from "@/lib/constants";
 import { money, pct } from "@/lib/format";
 import { SignedIn, SignedOut } from "@/lib/auth/gates";
-import { listProjects } from "@/lib/server/projects";
+import { getProject, listProjects } from "@/lib/server/projects";
 import { useAsync } from "@/lib/use-async";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 
@@ -40,7 +40,7 @@ function TwinPage() {
                 </SignedOut>
                 <SignedIn>
                   <Button asChild size="lg" className="bg-cream text-ink hover:bg-bg">
-                    <Link to="/app">
+                    <Link to="/dashboard">
                       Open your sites
                       <ArrowRight className="size-4" />
                     </Link>
@@ -108,8 +108,12 @@ function LiveOrSample() {
 function LiveTwin() {
   const projects = useAsync(() => listProjects(), []);
   const p = projects.data?.[0];
+  const snap = useAsync(() => (p ? getProject({ data: p.id }) : Promise.resolve(null)), [p?.id]);
   if (projects.loading && !p) return <SampleTwin />;
   if (!p) return <SampleTwin />;
+  const phases = snap.data?.phases ?? [];
+  const leftover = (snap.data?.materials ?? []).filter((m) => /cement/i.test(m.name))[0];
+  const cementLeft = leftover ? Math.max(0, leftover.qtyNeeded - leftover.qtyUsed) : null;
   return (
     <Card className="bg-bg-elevated p-3 text-ink">
       <div className="rounded-xl bg-bg p-4">
@@ -123,7 +127,7 @@ function LiveTwin() {
           </span>
         </div>
         <Progress value={p.progress} className="mt-4" />
-        <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
+        <div className="mt-5 grid grid-cols-3 gap-3 text-sm">
           <div>
             <p className="text-xs text-muted">Spent</p>
             <p className="font-medium tabular-nums">{money(p.spent)}</p>
@@ -132,7 +136,24 @@ function LiveTwin() {
             <p className="text-xs text-muted">Envelope</p>
             <p className="font-medium tabular-nums">{money(p.budget)}</p>
           </div>
+          <div>
+            <p className="text-xs text-muted">Cement left</p>
+            <p className="font-medium tabular-nums">{cementLeft == null ? "—" : `${Math.round(cementLeft)} bags`}</p>
+          </div>
         </div>
+        {phases.length ? (
+          <div className="mt-4 space-y-2">
+            {phases.slice(0, 3).map((ph) => (
+              <div key={ph.id} className="flex items-center gap-3">
+                <span className="w-28 truncate text-xs text-muted">{ph.name}</span>
+                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-bg-sunken">
+                  <div className="h-full rounded-full bg-ink/80" style={{ width: `${ph.progress}%` }} />
+                </div>
+                <span className="w-8 text-right font-mono text-xs tabular-nums">{ph.progress}%</span>
+              </div>
+            ))}
+          </div>
+        ) : null}
         <Button asChild className="mt-5 w-full">
           <Link to="/app/projects/$projectId" params={{ projectId: String(p.id) }} search={{}}>
             Open this twin

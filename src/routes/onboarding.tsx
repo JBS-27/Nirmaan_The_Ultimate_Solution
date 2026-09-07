@@ -43,7 +43,7 @@ function Onboarding() {
 
   if (isPending) return null;
   if (!user) return <RedirectToSignIn />;
-  if (alreadyOnboarded) return <Navigate to="/app" replace />;
+  if (alreadyOnboarded) return <Navigate to="/dashboard" replace />;
 
   const userId = user.id;
   const fallbackName = user.displayName;
@@ -67,7 +67,7 @@ function Onboarding() {
         throw new Error("Profile saved, but onboarding did not complete. Try again.");
       }
       markOnboardedLocally(userId);
-      window.location.replace("/app");
+      window.location.replace("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save profile");
       setBusy(false);

@@ -8,7 +8,7 @@ import {
   Store,
   UserRound,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { RedirectToSignIn, UserButton } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { markOnboardedLocally, readOnboardedLocally } from "@/lib/onboarding-flag";
@@ -20,14 +20,14 @@ import { Skeleton } from "./ui/skeleton";
 import { cn } from "@/lib/utils";
 
 const NAV = [
-  { to: "/app" as const, label: "Home", icon: Home, primary: false },
+  { to: "/dashboard" as const, label: "Home", icon: Home, primary: false },
   { to: "/app/market" as const, label: "Market", icon: Store, primary: false },
   { to: "/app/new" as const, label: "New", icon: Plus, primary: true },
   { to: "/app/assistant" as const, label: "Assistant", icon: MessageSquare, primary: false },
   { to: "/app/account" as const, label: "You", icon: UserRound, primary: false },
 ];
 
-export function AppShell() {
+export function AppShell({ children }: { children?: ReactNode }) {
   const { user, isPending } = useCurrentUserState();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [onboarded, setOnboarded] = useState<boolean | null>(null);
@@ -108,7 +108,7 @@ export function AppShell() {
   return (
     <div className="min-h-dvh bg-bg">
       <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-line bg-bg/90 px-4 backdrop-blur-md">
-        <Link to="/app" className="flex items-center gap-2">
+        <Link to="/dashboard" className="flex items-center gap-2">
           <Logo />
         </Link>
         <nav className="ml-6 hidden items-center gap-1 md:flex">
@@ -130,7 +130,9 @@ export function AppShell() {
               search={{}}
               className={cn(
                 "rounded-md px-3 py-2 text-sm font-medium",
-                pathname === item.to || (item.to !== "/app" && pathname.startsWith(item.to))
+                pathname === item.to ||
+                  (item.to === "/dashboard" && (pathname === "/app" || pathname === "/projects")) ||
+                  (item.to !== "/dashboard" && pathname.startsWith(item.to))
                   ? "bg-bg-sunken text-ink"
                   : "text-muted hover:text-ink",
               )}
@@ -210,14 +212,16 @@ export function AppShell() {
       </header>
 
       <main className="mx-auto w-full max-w-6xl px-4 pt-6 pb-24 md:pb-10">
-        <Outlet />
+        {children ?? <Outlet />}
       </main>
 
       <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-line bg-bg/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden">
         {NAV.map((item) => {
           const Icon = item.icon;
           const active =
-            pathname === item.to || (item.to !== "/app" && pathname.startsWith(item.to));
+            pathname === item.to ||
+              (item.to === "/dashboard" && (pathname === "/app" || pathname === "/projects")) ||
+              (item.to !== "/dashboard" && pathname.startsWith(item.to));
           return (
             <Link
               key={item.to}

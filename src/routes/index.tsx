@@ -50,7 +50,7 @@ function Home() {
               </SignedOut>
               <SignedIn>
                 <Button asChild size="lg" className="bg-cream text-ink hover:bg-bg">
-                  <Link to="/app">
+                  <Link to="/dashboard">
                     Continue to projects
                     <ArrowRight className="size-4" />
                   </Link>
@@ -202,7 +202,7 @@ function Home() {
           </SignedOut>
           <SignedIn>
             <Button asChild size="lg">
-              <Link to="/app">
+                <Link to="/dashboard">
                 Open Nirmaan
                 <ArrowRight className="size-4" />
               </Link>

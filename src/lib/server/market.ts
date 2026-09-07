@@ -67,6 +67,75 @@ export const listSuppliers = createServerFn({ method: "GET" })
     });
   });
 
+export const listPublicProfessionals = createServerFn({ method: "POST" })
+  .handler(async (): Promise<Professional[]> => {
+    const sql = await getSql();
+    await ensureCatalog(sql);
+    const rows = await sql`select * from professionals order by rating desc, reviews desc`;
+    return rows.map(mapPro);
+  });
+
+export const submitMarketRequest = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((input: {
+    professionalId: number;
+    kind: "quote" | "hire";
+    projectId?: number;
+    message?: string;
+  }) => input)
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    const [pro] = await sql<{ id: number; name: string }>`
+      select id, name from professionals where id = ${data.professionalId}
+    `;
+    if (!pro) throw new Error("Professional not found");
+
+    if (data.projectId) {
+      await requireOwnedProject(sql, context.userId, data.projectId);
+    }
+
+    await sql`
+      insert into market_requests (user_id, professional_id, project_id, kind, message)
+      values (
+        ${context.userId}, ${data.professionalId}, ${data.projectId ?? null},
+        ${data.kind}, ${data.message ?? null}
+      )
+    `;
+
+    if (data.projectId && data.kind === "quote") {
+      const [rates] = await sql<{ rate_min: number; rate_max: number }>`
+        select rate_min, rate_max from professionals where id = ${data.professionalId}
+      `;
+      const amount = Math.round((num(rates?.rate_min) + num(rates?.rate_max)) / 2);
+      await sql`
+        insert into quotes (project_id, owner_id, professional_id, amount, message, status)
+        values (${data.projectId}, ${context.userId}, ${data.professionalId}, ${amount}, ${data.message ?? null}, 'quoted')
+      `;
+    } else if (data.projectId && data.kind === "hire") {
+      const existing = await sql`
+        select id from hires where project_id = ${data.projectId} and professional_id = ${data.professionalId}
+      `;
+      if (!existing[0]) {
+        await sql`
+          insert into hires (project_id, professional_id, status)
+          values (${data.projectId}, ${data.professionalId}, 'active')
+        `;
+      }
+    }
+
+    await sql`
+      insert into notifications (user_id, title, body, href)
+      values (
+        ${context.userId},
+        ${data.kind === "hire" ? "Hire request sent" : "Quote requested"},
+        ${"Sent to " + pro.name + (data.projectId ? " and linked to your site." : ". Create a project to attach it.")},
+        ${data.projectId ? "/app/projects/" + data.projectId + "?tab=team" : "/app/new"}
+      )
+    `;
+
+    return { ok: true as const, name: String(pro.name) };
+  });
+
 export const requestQuote = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((input: { projectId: number; professionalId: number; message?: string }) => input)

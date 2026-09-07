@@ -1,11 +1,16 @@
-import { createFileRoute, Navigate } from "@tanstack/react-router";
-import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { createFileRoute } from "@tanstack/react-router";
+import { AppShell } from "@/components/app-shell";
+import { OwnerHome } from "@/components/workspace-home";
 
-export const Route = createFileRoute("/dashboard")({ component: DashboardAlias });
+export const Route = createFileRoute("/dashboard")({
+  validateSearch: (): Record<string, never> => ({}),
+  component: Dashboard,
+});
 
-function DashboardAlias() {
-  const { user, isPending } = useCurrentUserState();
-  if (isPending) return null;
-  if (!user) return <Navigate to="/login" search={{ redirect: "/app" }} />;
-  return <Navigate to="/app" />;
+function Dashboard() {
+  return (
+    <AppShell>
+      <OwnerHome title="Dashboard" />
+    </AppShell>
+  );
 }

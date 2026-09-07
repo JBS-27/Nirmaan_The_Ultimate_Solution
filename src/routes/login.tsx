@@ -1,4 +1,4 @@
-import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowRight, Eye, EyeOff, Lock, Mail, ShieldCheck, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import { GROK_PROVIDERS, authClient, authEnabled, signIn } from "@/lib/auth/client";
@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { APP_NAME } from "@/lib/constants";
 import { money } from "@/lib/format";
+import { AFTER_LOGIN } from "@/lib/paths";
 import { cn } from "@/lib/utils";
 
 const LIVE_SITE = "https://nirmaan-the-ultimate-solution.vercel.app";
@@ -39,7 +40,8 @@ export const Route = createFileRoute("/login")({
 });
 
 function safeRedirect(path?: string) {
-  if (!path || !path.startsWith("/") || path.startsWith("//")) return "/app";
+  if (!path || !path.startsWith("/") || path.startsWith("//")) return AFTER_LOGIN;
+  if (path === "/login") return AFTER_LOGIN;
   return path;
 }
 
@@ -57,12 +59,17 @@ function Login() {
   const [onPreviewHost, setOnPreviewHost] = useState(false);
   const [showBrokerSignIn, setShowBrokerSignIn] = useState(false);
   const [showNativeGoogle, setShowNativeGoogle] = useState(false);
+  const [showNativeX, setShowNativeX] = useState(false);
+  const [sessionWaited, setSessionWaited] = useState(false);
 
   useEffect(() => {
     const host = window.location.hostname;
     setOnPreviewHost(isVercelPreviewHost(host));
     setShowBrokerSignIn(isGrokSandbox(host));
-    setShowNativeGoogle(!isGrokSandbox(host) && !isVercelPreviewHost(host));
+    setShowNativeGoogle(!isGrokSandbox(host));
+    setShowNativeX(!isGrokSandbox(host));
+    const t = window.setTimeout(() => setSessionWaited(true), 8000);
+    return () => window.clearTimeout(t);
   }, []);
 
   async function onGoogle() {
@@ -71,7 +78,7 @@ function Login() {
     try {
       const res = await authClient.signIn.social({
         provider: "google",
-        callbackURL: next,
+        callbackURL: next === AFTER_LOGIN ? AFTER_LOGIN : next,
         errorCallbackURL: "/login",
       });
       if (res.error) {
@@ -83,12 +90,30 @@ function Login() {
     }
   }
 
-  if (!isPending && user) {
-    if (next !== "/app" && typeof window !== "undefined") {
-      window.location.replace(next);
-      return null;
+  async function onTwitter() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await authClient.signIn.social({
+        provider: "twitter",
+        callbackURL: next,
+        errorCallbackURL: "/login",
+      });
+      if (res.error) {
+        throw new Error(res.error.message || "X sign-in is not configured yet");
+      }
+    } catch (err) {
+      setError(friendlyAuthError(err instanceof Error ? err.message : "X sign-in failed"));
+      setBusy(false);
     }
-    return <Navigate to="/app" />;
+  }
+
+  const sessionReady = !isPending || sessionWaited;
+  if (sessionReady && user) {
+    if (typeof window !== "undefined") {
+      window.location.replace(next);
+    }
+    return null;
   }
 
   async function onEmail(e: React.FormEvent) {
@@ -103,7 +128,8 @@ function Login() {
         const res = await authClient.signIn.email({ email, password });
         if (res.error) throw new Error(res.error.message || "Could not sign in");
       }
-      window.location.href = next;
+      await authClient.getSession();
+      window.location.replace(next);
     } catch (err) {
       setError(friendlyAuthError(err instanceof Error ? err.message : "Sign-in failed"));
     } finally {
@@ -178,7 +204,7 @@ function Login() {
             </p>
           ) : null}
 
-          {isPending ? (
+          {!sessionReady ? (
             <LoginSkeleton />
           ) : authEnabled ? (
             <div className="mt-6">
@@ -219,19 +245,36 @@ function Login() {
                 </>
               ) : showNativeGoogle ? (
                 <>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-12 w-full justify-between bg-bg px-4"
-                    disabled={busy}
-                    onClick={() => void onGoogle()}
-                  >
-                    <span className="inline-flex items-center gap-3">
-                      <ProviderMark idp="google" />
-                      Continue with Google
-                    </span>
-                    <ArrowRight className="size-4 text-faint" />
-                  </Button>
+                  <div className="grid gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-12 w-full justify-between bg-bg px-4"
+                      disabled={busy}
+                      onClick={() => void onGoogle()}
+                    >
+                      <span className="inline-flex items-center gap-3">
+                        <ProviderMark idp="google" />
+                        Continue with Google
+                      </span>
+                      <ArrowRight className="size-4 text-faint" />
+                    </Button>
+                    {showNativeX ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-12 w-full justify-between bg-bg px-4"
+                        disabled={busy}
+                        onClick={() => void onTwitter()}
+                      >
+                        <span className="inline-flex items-center gap-3">
+                          <ProviderMark idp="twitter" />
+                          Continue with X
+                        </span>
+                        <ArrowRight className="size-4 text-faint" />
+                      </Button>
+                    ) : null}
+                  </div>
                   <div className="flex items-center gap-3 py-5">
                     <span className="h-px flex-1 bg-line" />
                     <span className="text-[11px] tracking-[0.16em] text-faint uppercase">or with email</span>

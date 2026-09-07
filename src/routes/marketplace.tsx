@@ -7,10 +7,13 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/field";
 import { Tab, TabBar } from "@/components/ui/tabs";
+import { MarketActions } from "@/components/market-actions";
 import { CATALOG_PROS, CATALOG_SUPPLIERS } from "@/lib/catalog";
 import { CITIES } from "@/lib/constants";
 import { money } from "@/lib/format";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { listPublicProfessionals } from "@/lib/server/market";
+import { useAsync } from "@/lib/use-async";
 
 export const Route = createFileRoute("/marketplace")({
   validateSearch: (s: Record<string, unknown>): { tab?: "pros" | "suppliers"; city?: string } => ({
@@ -34,8 +37,9 @@ function PublicMarket() {
   const [role, setRole] = useState("");
   const [q, setQ] = useState("");
   const signedIn = Boolean(user);
+  const livePros = useAsync(() => listPublicProfessionals(), []);
 
-  const pros = useMemo(() => {
+  const catalogFallback = useMemo(() => {
     return CATALOG_PROS.filter((p) => {
       if (city && p.city !== city) return false;
       if (role && p.role !== role) return false;
@@ -46,6 +50,20 @@ function PublicMarket() {
       return true;
     });
   }, [city, role, q]);
+
+  const pros = useMemo(() => {
+    const source = livePros.data ?? [];
+    if (source.length === 0) return catalogFallback.map((p, i) => ({ ...p, id: -(i + 1) }));
+    return source.filter((p) => {
+      if (city && p.city !== city) return false;
+      if (role && p.role !== role) return false;
+      if (q) {
+        const hay = `${p.name} ${p.specializations} ${p.bio} ${p.city}`.toLowerCase();
+        if (!hay.includes(q.toLowerCase())) return false;
+      }
+      return true;
+    });
+  }, [livePros.data, catalogFallback, city, role, q]);
 
   const shops = useMemo(() => {
     return CATALOG_SUPPLIERS.filter((s) => {
@@ -158,7 +176,7 @@ function PublicMarket() {
               <Card className="p-6 text-sm text-muted">No professionals match that filter.</Card>
             ) : (
               pros.map((p) => (
-                <Card key={`${p.role}-${p.name}`} className="flex h-full flex-col p-5">
+                <Card key={p.id || `${p.role}-${p.name}`} className="flex h-full flex-col p-5">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-xs tracking-wide text-forest uppercase">{ROLE_LABEL[p.role] ?? p.role}</p>
@@ -177,30 +195,11 @@ function PublicMarket() {
                       {p.rating.toFixed(1)} · {p.reviews} reviews
                     </span>
                   </div>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <Button asChild size="sm">
-                      {signedIn ? (
-                        <Link to="/app/market" search={{ tab: "pros" }}>
-                          Request quote
-                        </Link>
-                      ) : (
-                        <Link to="/login" search={{ redirect: "/app/market" }}>
-                          Request quote
-                        </Link>
-                      )}
-                    </Button>
-                    <Button asChild size="sm" variant="outline">
-                      {signedIn ? (
-                        <Link to="/app/market" search={{ tab: "pros" }}>
-                          Hire
-                        </Link>
-                      ) : (
-                        <Link to="/login" search={{ redirect: "/app/market" }}>
-                          Hire
-                        </Link>
-                      )}
-                    </Button>
-                  </div>
+                  <MarketActions
+                    professionalId={p.id}
+                    name={p.name}
+                    signedIn={signedIn && p.id > 0}
+                  />
                 </Card>
               ))
             )}

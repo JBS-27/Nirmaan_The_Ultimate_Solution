@@ -33,7 +33,7 @@ export function PublicHeader({ active }: { active?: "home" | "twin" | "market" }
         <div className="h-11 w-24 animate-pulse rounded-md bg-bg-sunken" />
       ) : user ? (
         <Button asChild>
-          <Link to="/app">Open workspace</Link>
+          <Link to="/dashboard">Open workspace</Link>
         </Button>
       ) : (
         <div className="flex items-center gap-2">

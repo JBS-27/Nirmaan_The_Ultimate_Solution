@@ -1,11 +1,16 @@
-import { createFileRoute, Navigate } from "@tanstack/react-router";
-import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { createFileRoute } from "@tanstack/react-router";
+import { AppShell } from "@/components/app-shell";
+import { OwnerHome } from "@/components/workspace-home";
 
-export const Route = createFileRoute("/projects")({ component: ProjectsAlias });
+export const Route = createFileRoute("/projects")({
+  validateSearch: (): Record<string, never> => ({}),
+  component: Projects,
+});
 
-function ProjectsAlias() {
-  const { user, isPending } = useCurrentUserState();
-  if (isPending) return null;
-  if (!user) return <Navigate to="/login" search={{ redirect: "/app" }} />;
-  return <Navigate to="/app" />;
+function Projects() {
+  return (
+    <AppShell>
+      <OwnerHome title="Projects" />
+    </AppShell>
+  );
 }

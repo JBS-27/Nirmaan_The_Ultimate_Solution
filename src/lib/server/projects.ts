@@ -59,7 +59,7 @@ async function insertEstimate(
   return est;
 }
 
-export const listProjects = createServerFn({ method: "GET" })
+export const listProjects = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .handler(async ({ context }): Promise<(Project & { progress: number; spent: number })[]> => {
     const sql = await getSql();
@@ -104,7 +104,7 @@ export const listProjects = createServerFn({ method: "GET" })
     return out;
   });
 
-export const getProject = createServerFn({ method: "GET" })
+export const getProject = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((id: number) => id)
   .handler(async ({ context, data: id }): Promise<ProjectSnapshot> => {
