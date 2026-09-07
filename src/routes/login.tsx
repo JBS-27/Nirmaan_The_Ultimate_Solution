@@ -1,6 +1,6 @@
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import { ArrowRight, Eye, EyeOff, Lock, Mail, ShieldCheck, UserRound } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { GROK_PROVIDERS, authClient, authEnabled, signIn } from "@/lib/auth/client";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { Logo, LogoMark } from "@/components/logo";
@@ -11,6 +11,26 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { APP_NAME } from "@/lib/constants";
 import { money } from "@/lib/format";
 import { cn } from "@/lib/utils";
+
+const LIVE_SITE = "https://nirmaan-the-ultimate-solution.vercel.app";
+
+function isVercelPreviewHost(hostname: string) {
+  return hostname.endsWith(".vercel.app") && hostname !== new URL(LIVE_SITE).hostname;
+}
+
+function isGrokSandbox(hostname: string) {
+  return hostname.endsWith(".grok-sandbox.com");
+}
+
+function friendlyAuthError(message: string) {
+  if (/invalid origin/i.test(message)) {
+    return "This preview URL cannot sign you in. Open the live site instead.";
+  }
+  if (/invalid redirect/i.test(message)) {
+    return "Google and X are not connected on this site. Create an account with email instead.";
+  }
+  return message;
+}
 
 export const Route = createFileRoute("/login")({
   validateSearch: (s: Record<string, unknown>): { redirect?: string } =>
@@ -34,6 +54,34 @@ function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [onPreviewHost, setOnPreviewHost] = useState(false);
+  const [showBrokerSignIn, setShowBrokerSignIn] = useState(false);
+  const [showNativeGoogle, setShowNativeGoogle] = useState(false);
+
+  useEffect(() => {
+    const host = window.location.hostname;
+    setOnPreviewHost(isVercelPreviewHost(host));
+    setShowBrokerSignIn(isGrokSandbox(host));
+    setShowNativeGoogle(!isGrokSandbox(host) && !isVercelPreviewHost(host));
+  }, []);
+
+  async function onGoogle() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await authClient.signIn.social({
+        provider: "google",
+        callbackURL: next,
+        errorCallbackURL: "/login",
+      });
+      if (res.error) {
+        throw new Error(res.error.message || "Google sign-in is not configured yet");
+      }
+    } catch (err) {
+      setError(friendlyAuthError(err instanceof Error ? err.message : "Google sign-in failed"));
+      setBusy(false);
+    }
+  }
 
   if (!isPending && user) {
     if (next !== "/app" && typeof window !== "undefined") {
@@ -57,7 +105,7 @@ function Login() {
       }
       window.location.href = next;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Sign-in failed");
+      setError(friendlyAuthError(err instanceof Error ? err.message : "Sign-in failed"));
     } finally {
       setBusy(false);
     }
@@ -120,33 +168,82 @@ function Login() {
             </button>
           </div>
 
+          {onPreviewHost ? (
+            <p className="mt-5 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger" role="status">
+              Sign-in does not work on this temporary preview link. Use{" "}
+              <a href={`${LIVE_SITE}/login`} className="font-medium underline underline-offset-2">
+                the live site
+              </a>
+              .
+            </p>
+          ) : null}
+
           {isPending ? (
             <LoginSkeleton />
           ) : authEnabled ? (
             <div className="mt-6">
-              <div className="grid gap-2">
-                {GROK_PROVIDERS.map((p) => (
+              {showBrokerSignIn ? (
+                <>
+                  <div className="grid gap-2">
+                    {GROK_PROVIDERS.map((p) => (
+                      <Button
+                        key={p.providerId}
+                        type="button"
+                        variant="outline"
+                        className="h-12 w-full justify-between bg-bg px-4"
+                        disabled={busy}
+                        onClick={() => {
+                          setBusy(true);
+                          setError(null);
+                          void signIn(p.providerId, { callbackURL: next }).catch((err: unknown) => {
+                            setError(
+                              friendlyAuthError(err instanceof Error ? err.message : "Sign-in failed"),
+                            );
+                            setBusy(false);
+                          });
+                        }}
+                      >
+                        <span className="inline-flex items-center gap-3">
+                          <ProviderMark idp={p.idp} />
+                          Continue with {p.label}
+                        </span>
+                        <ArrowRight className="size-4 text-faint" />
+                      </Button>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-3 py-5">
+                    <span className="h-px flex-1 bg-line" />
+                    <span className="text-[11px] tracking-[0.16em] text-faint uppercase">or with email</span>
+                    <span className="h-px flex-1 bg-line" />
+                  </div>
+                </>
+              ) : showNativeGoogle ? (
+                <>
                   <Button
-                    key={p.providerId}
                     type="button"
                     variant="outline"
                     className="h-12 w-full justify-between bg-bg px-4"
-                    onClick={() => signIn(p.providerId, { callbackURL: next })}
+                    disabled={busy}
+                    onClick={() => void onGoogle()}
                   >
                     <span className="inline-flex items-center gap-3">
-                      <ProviderMark idp={p.idp} />
-                      Continue with {p.label}
+                      <ProviderMark idp="google" />
+                      Continue with Google
                     </span>
                     <ArrowRight className="size-4 text-faint" />
                   </Button>
-                ))}
-              </div>
-
-              <div className="flex items-center gap-3 py-5">
-                <span className="h-px flex-1 bg-line" />
-                <span className="text-[11px] tracking-[0.16em] text-faint uppercase">or with email</span>
-                <span className="h-px flex-1 bg-line" />
-              </div>
+                  <div className="flex items-center gap-3 py-5">
+                    <span className="h-px flex-1 bg-line" />
+                    <span className="text-[11px] tracking-[0.16em] text-faint uppercase">or with email</span>
+                    <span className="h-px flex-1 bg-line" />
+                  </div>
+                </>
+              ) : (
+                <p className="mb-5 text-sm text-muted">
+                  Use email and a password on this preview link, or open the live site to use
+                  Google.
+                </p>
+              )}
 
               <form className="space-y-3" onSubmit={onEmail}>
                 {mode === "up" ? (

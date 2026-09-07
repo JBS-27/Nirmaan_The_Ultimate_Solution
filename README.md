@@ -40,13 +40,20 @@ Do **not** commit a `.env` file. Set these on Vercel (or your host).
 | `DATABASE_URL` | Yes on deploy | server | Neon / Postgres connection string. Local preview falls back to PGLite. |
 | `BETTER_AUTH_SECRET` | Yes on deploy | server | Signs sessions. Generate a long random string. |
 | `BETTER_AUTH_URL` | Yes on deploy | server | Public origin, e.g. `https://nirmaan-the-ultimate-solution.vercel.app` |
-| `GROK_AUTH_ISSUER` | Optional | server | Defaults to `https://auth.grok.me` (Google + X broker). |
-| `GROK_AUTH_CLIENT_ID` | Yes for Google/X on your own deploy | server | Per-app broker client. |
-| `GROK_AUTH_CLIENT_SECRET` | Yes for Google/X on your own deploy | server | Per-app broker secret. |
+| `GOOGLE_CLIENT_ID` | Yes for Google on Vercel | server | OAuth 2.0 client ID from Google Cloud. |
+| `GOOGLE_CLIENT_SECRET` | Yes for Google on Vercel | server | OAuth 2.0 client secret from Google Cloud. |
+| `GROK_AUTH_ISSUER` | Optional | server | Defaults to `https://auth.grok.me` (sandbox Google + X broker). |
+| `GROK_AUTH_CLIENT_ID` | Optional | server | Per-app broker client (Grok sandbox only). |
+| `GROK_AUTH_CLIENT_SECRET` | Optional | server | Per-app broker secret (Grok sandbox only). |
 | `XAI_API_KEY` | Optional | server | Grok API for assistant, bill OCR, plan read, schedule notes. Without it, the assistant still answers from the project ledger. |
 | `VITE_AUTH_ENABLED` | Do not set to `false` | client | Omit this key (or anything other than `"false"`) so sign-in stays on. |
 
-Google and X are **not** configured with raw `GOOGLE_CLIENT_ID` / Twitter keys in this app. They federate through the Grok auth broker (`GROK_AUTH_*`). Email + password is this app’s own Better Auth and only needs the database + `BETTER_AUTH_*`.
+On Vercel, Google is this app’s own Better Auth provider (`GOOGLE_CLIENT_*`). In Google Cloud, set:
+
+- Authorised JavaScript origins: `https://nirmaan-the-ultimate-solution.vercel.app`
+- Authorised redirect URIs: `https://nirmaan-the-ultimate-solution.vercel.app/api/auth/callback/google`
+
+Then add `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` on Vercel (Production) and Redeploy. Email + password still works without those.
 
 On [Grok App Builder](https://grok.com) deploy, `DATABASE_URL`, auth broker credentials, and `XAI_API_KEY` are injected for you. On a standalone Vercel project you must set them yourself.
 
