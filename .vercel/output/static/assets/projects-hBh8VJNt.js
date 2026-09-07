@@ -1,1 +1,0 @@
-import{a as e,t}from"./useNavigate-DrqvhG58.js";import{n}from"./use-current-user-C4dygdOb.js";var r=e();function i(){let{user:e,isPending:i}=n();return i?null:e?(0,r.jsx)(t,{to:`/app`}):(0,r.jsx)(t,{to:`/login`,search:{redirect:`/app`}})}export{i as component};

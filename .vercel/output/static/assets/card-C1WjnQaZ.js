@@ -1,1 +1,0 @@
-import{a as e}from"./useNavigate-DrqvhG58.js";import{a as t}from"./button-BQ9ygEDC.js";var n=e();function r({className:e,...r}){return(0,n.jsx)(`div`,{className:t(`rounded-xl bg-bg-elevated p-4 text-ink shadow-[var(--shadow-card)]`,e),...r})}export{r as t};
