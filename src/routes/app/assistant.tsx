@@ -1,13 +1,15 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { Mic, Send } from "lucide-react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Mic, Send, Sparkles } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { PageHeader } from "@/components/app-shell";
+import { SitePhoto } from "@/components/site-photo";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { NativeSelect } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
 import { askAssistant, listAiMessages } from "@/lib/server/ai";
 import { listProjects } from "@/lib/server/projects";
+import { SITE_PHOTOS } from "@/lib/site-media";
 import { useAsync } from "@/lib/use-async";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +18,14 @@ export const Route = createFileRoute("/app/assistant")({
     typeof s.projectId === "string" ? { projectId: s.projectId } : {},
   component: Assistant,
 });
+
+const SUGGESTIONS = [
+  "How much cement is left?",
+  "What is my remaining budget?",
+  "Who is working today?",
+  "Give me a summary of this project",
+  "What should I do next?",
+];
 
 function Assistant() {
   const search = Route.useSearch();
@@ -30,6 +40,11 @@ function Assistant() {
   const scroller = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (projectId || !projects.data?.length) return;
+    setProjectId(projects.data[0]!.id);
+  }, [projects.data, projectId]);
+
+  useEffect(() => {
     setLocal([]);
   }, [projectId]);
 
@@ -38,6 +53,7 @@ function Assistant() {
   }, [local, history.data, busy]);
 
   const messages = [...(history.data ?? []), ...local];
+  const site = projects.data?.find((p) => p.id === projectId);
 
   async function send(text: string) {
     const trimmed = text.trim();
@@ -47,8 +63,8 @@ function Assistant() {
     setBusy(true);
     try {
       const res = await askAssistant({ data: { projectId, prompt: trimmed } });
-      const text = res.ok ? res.text : "Could not answer.";
-      setLocal((m) => [...m, { role: "assistant", content: text }]);
+      const reply = res.ok ? res.text : "Could not answer.";
+      setLocal((m) => [...m, { role: "assistant", content: reply }]);
     } catch (err) {
       setLocal((m) => [
         ...m,
@@ -75,14 +91,14 @@ function Assistant() {
       <PageHeader
         kicker="Assistant"
         title="Ask the twin"
-        description="Questions are answered from this project’s BOQ, bills, crew and schedule — not from generic advice."
+        description="Answers come from this project’s BOQ, bills, crew and schedule — not generic advice."
         action={
           <NativeSelect
-            className="w-48"
+            className="w-52"
             value={projectId ?? ""}
             onChange={(e) => setProjectId(e.target.value ? Number(e.target.value) : undefined)}
           >
-            <option value="">No project</option>
+            <option value="">Pick a project</option>
             {(projects.data ?? []).map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
@@ -92,63 +108,88 @@ function Assistant() {
         }
       />
 
-      <Card className="flex min-h-[60dvh] flex-col p-0">
-        <div ref={scroller} className="flex-1 space-y-3 overflow-y-auto p-4">
-          {messages.length === 0 ? (
-            <div className="grid gap-2 sm:grid-cols-2">
-              {[
-                "How much cement do I still need?",
-                "Which phase is most over budget?",
-                "Who should I hire next in my city?",
-                "Summarise site progress for today",
-              ].map((q) => (
-                <button
-                  key={q}
-                  type="button"
-                  className="rounded-lg border border-line bg-bg px-3 py-3 text-left text-sm hover:bg-bg-sunken"
-                  onClick={() => void send(q)}
-                >
-                  {q}
-                </button>
-              ))}
-            </div>
-          ) : (
-            messages.map((m, i) => (
-              <div
-                key={`${m.role}-${i}-${m.content.slice(0, 12)}`}
-                className={cn(
-                  "max-w-[42rem] rounded-xl px-3 py-2 text-sm whitespace-pre-wrap",
-                  m.role === "user" ? "ml-auto bg-forest text-cream" : "bg-bg-sunken text-ink",
-                )}
-              >
-                {m.content}
+      {!projects.loading && !(projects.data ?? []).length ? (
+        <Card className="overflow-hidden p-0">
+          <SitePhoto src={SITE_PHOTOS.plans} alt="" className="h-40">
+            <p className="font-display text-2xl tracking-tight">Load a site first</p>
+          </SitePhoto>
+          <div className="p-5">
+            <p className="text-sm text-muted">The twin reads a live ledger. Plant the Koramangala demo, then ask about cement.</p>
+            <Button asChild className="mt-4">
+              <Link to="/dashboard">Go to dashboard</Link>
+            </Button>
+          </div>
+        </Card>
+      ) : (
+        <Card className="flex min-h-[64dvh] flex-col overflow-hidden p-0">
+          {site ? (
+            <div className="flex items-center justify-between gap-3 border-b border-line bg-bg px-4 py-3">
+              <div>
+                <p className="text-sm font-medium">{site.name}</p>
+                <p className="text-xs text-muted">
+                  {site.city} · {site.progress}% · ledger-aware
+                </p>
               </div>
-            ))
-          )}
-          {busy ? <p className="text-sm text-muted">Checking the ledger…</p> : null}
-        </div>
-        <form
-          className="flex items-end gap-2 border-t border-line p-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void send(prompt);
-          }}
-        >
-          <Textarea
-            rows={2}
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            placeholder="How much TMT is left for the first slab?"
-            className="min-h-14"
-          />
-          <Button type="button" variant="outline" size="icon" onClick={listen} aria-label="Voice">
-            <Mic className="size-4" />
-          </Button>
-          <Button type="submit" size="icon" disabled={busy} aria-label="Send">
-            <Send className="size-4" />
-          </Button>
-        </form>
-      </Card>
+              <Sparkles className="size-4 text-forest" />
+            </div>
+          ) : null}
+          <div ref={scroller} className="flex-1 space-y-3 overflow-y-auto p-4">
+            {messages.length === 0 ? (
+              <div>
+                <p className="mb-3 text-sm text-muted">Try one of these — the twin will read the site book.</p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {SUGGESTIONS.map((q) => (
+                    <button
+                      key={q}
+                      type="button"
+                      className="rounded-xl border border-line bg-bg px-4 py-3 text-left text-sm transition-colors duration-150 hover:border-forest/40 hover:bg-forest-soft"
+                      onClick={() => void send(q)}
+                    >
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              messages.map((m, i) => (
+                <div
+                  key={`${m.role}-${i}-${m.content.slice(0, 12)}`}
+                  className={cn(
+                    "max-w-[42rem] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap",
+                    m.role === "user" ? "ml-auto bg-forest text-cream" : "bg-bg-sunken text-ink",
+                  )}
+                >
+                  {m.content}
+                </div>
+              ))
+            )}
+            {busy ? (
+              <p className="text-sm text-muted">Checking the ledger…</p>
+            ) : null}
+          </div>
+          <form
+            className="flex items-end gap-2 border-t border-line p-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void send(prompt);
+            }}
+          >
+            <Textarea
+              rows={2}
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder="How much TMT is left for the first slab?"
+              className="min-h-14"
+            />
+            <Button type="button" variant="outline" size="icon" onClick={listen} aria-label="Voice">
+              <Mic className="size-4" />
+            </Button>
+            <Button type="submit" size="icon" disabled={busy} aria-label="Send">
+              <Send className="size-4" />
+            </Button>
+          </form>
+        </Card>
+      )}
     </div>
   );
 }

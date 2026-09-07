@@ -6,28 +6,67 @@ import { requireProjectAccess } from "./access";
 import { money, qty } from "@/lib/format";
 import { num, todayISO } from "@/lib/utils";
 
-async function grokChat(
-  messages: { role: "system" | "user" | "assistant"; content: unknown }[],
-  maxTokens = 700,
+type ChatTurn = { role: "system" | "user" | "assistant"; content: unknown };
+
+async function postChat(
+  url: string,
+  apiKey: string,
+  body: Record<string, unknown>,
 ): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
-  const apiKey = process.env.XAI_API_KEY;
-  if (!apiKey) return { ok: false, error: "AI is not available in this environment" };
-  const res = await fetch("https://api.x.ai/v1/chat/completions", {
+  const res = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) return { ok: false, error: `LLM error ${res.status}` };
+  const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+  const text = json.choices?.[0]?.message?.content ?? "";
+  return text ? { ok: true, text } : { ok: false, error: "Empty model reply" };
+}
+
+async function grokChat(
+  messages: ChatTurn[],
+  maxTokens = 700,
+): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
+  const xai = process.env.XAI_API_KEY?.trim();
+  const openai = process.env.OPENAI_API_KEY?.trim();
+  const gemini = process.env.GEMINI_API_KEY?.trim() || process.env.GOOGLE_GENERATIVE_AI_API_KEY?.trim();
+
+  if (xai) {
+    const r = await postChat("https://api.x.ai/v1/chat/completions", xai, {
       model: "grok-4.5",
       messages,
       max_tokens: maxTokens,
       temperature: 0.4,
-    }),
-  });
-  if (!res.ok) return { ok: false, error: `xAI API error ${res.status}` };
-  const body = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-  return { ok: true, text: body.choices?.[0]?.message?.content ?? "" };
+    });
+    if (r.ok) return r;
+  }
+  if (openai) {
+    const r = await postChat("https://api.openai.com/v1/chat/completions", openai, {
+      model: "gpt-4o-mini",
+      messages,
+      max_tokens: maxTokens,
+      temperature: 0.4,
+    });
+    if (r.ok) return r;
+  }
+  if (gemini) {
+    const r = await postChat(
+      "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+      gemini,
+      {
+        model: "gemini-2.0-flash",
+        messages,
+        max_tokens: maxTokens,
+        temperature: 0.4,
+      },
+    );
+    if (r.ok) return r;
+  }
+  return { ok: false, error: "AI is not available in this environment" };
 }
 
 async function loadLedger(projectId: number, userId: string): Promise<{ brief: string; facts: LedgerFacts }> {
@@ -165,7 +204,7 @@ export const askAssistant = createServerFn({ method: "POST" })
     return { ok: true as const, text: result.text, degraded: false as const };
   });
 
-export const listAiMessages = createServerFn({ method: "GET" })
+export const listAiMessages = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((input: { projectId?: number } = {}) => input)
   .handler(async ({ context, data }) => {

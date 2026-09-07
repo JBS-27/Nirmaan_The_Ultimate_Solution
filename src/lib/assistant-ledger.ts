@@ -74,7 +74,31 @@ export function answerFromLedger(prompt: string, facts: LedgerFacts): string {
     }
     if (behind[0]) lines.push(`Next focus: ${behind[0].name}.`);
   }
-  if (/crew|worker|attendance|present|wage|payout|mason|labour|labor/.test(q)) {
+  if (/next|should i|what now|priority|focus/.test(q)) {
+    const nextPhase = facts.phases.find((p) => p.status !== "done");
+    const unpaid = facts.bills.filter((b) => !b.paid);
+    const unpaidSum = unpaid.reduce((s, b) => s + b.amount, 0);
+    const low = facts.materials
+      .map((m) => ({ m, left: leftover(m) }))
+      .filter((x) => x.left > 0)
+      .slice(0, 3);
+    lines.push(`Next on ${facts.name}:`);
+    if (nextPhase) lines.push(`• Push ${nextPhase.name} — it is ${nextPhase.progress}% (${nextPhase.status}).`);
+    if (unpaid.length) lines.push(`• Clear ${unpaid.length} unpaid bill${unpaid.length > 1 ? "s" : ""} (${money(unpaidSum)}).`);
+    const wagePending = facts.workers.reduce((s, w) => s + w.pending, 0);
+    if (wagePending > 0) lines.push(`• Crew payouts pending ${money(wagePending)}.`);
+    if (low[0]) lines.push(`• Order more ${low[0].m.name} — ${qty(low[0].left, low[0].m.unit)} still needed.`);
+    if (facts.presentToday === 0) lines.push("• Mark today's attendance so wages stay honest.");
+  }
+  if (/summary|overview|tell me about/.test(q)) {
+    lines.push(
+      `${facts.name} in ${facts.city} is ${facts.progress}% complete. Envelope ${money(facts.budget)}, spent ${money(facts.spent)}, left ${money(facts.remaining)}.`,
+    );
+    lines.push(
+      `${facts.workers.length} crew on the books, ${facts.presentToday} present today. ${facts.bills.length} bills on file.`,
+    );
+  }
+  if (/crew|worker|attendance|present|wage|payout|mason|labour|labor|who is working|on site today/.test(q)) {
     if (!facts.workers.length) {
       lines.push("No crew on the books yet. Add workers on the Crew tab.");
     } else {

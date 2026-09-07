@@ -11,6 +11,7 @@ import { MarketActions } from "@/components/market-actions";
 import { CATALOG_PROS, CATALOG_SUPPLIERS } from "@/lib/catalog";
 import { CITIES } from "@/lib/constants";
 import { money } from "@/lib/format";
+import { portraitFor } from "@/lib/site-media";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { listPublicProfessionals } from "@/lib/server/market";
 import { useAsync } from "@/lib/use-async";
@@ -178,10 +179,17 @@ function PublicMarket() {
               pros.map((p) => (
                 <Card key={p.id || `${p.role}-${p.name}`} className="flex h-full flex-col p-5">
                   <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-xs tracking-wide text-forest uppercase">{ROLE_LABEL[p.role] ?? p.role}</p>
-                      <h2 className="mt-1 font-display text-xl tracking-tight">{p.name}</h2>
-                      <p className="text-sm text-muted">{p.city}</p>
+                    <div className="flex items-start gap-3">
+                      <img
+                        src={portraitFor(p.name)}
+                        alt=""
+                        className="size-12 rounded-full object-cover outline outline-1 -outline-offset-1 outline-line"
+                      />
+                      <div>
+                        <p className="text-xs tracking-wide text-forest uppercase">{ROLE_LABEL[p.role] ?? p.role}</p>
+                        <h2 className="mt-1 font-display text-xl tracking-tight">{p.name}</h2>
+                        <p className="text-sm text-muted">{p.city}</p>
+                      </div>
                     </div>
                     <Badge tone="forest">Verified</Badge>
                   </div>

@@ -51,7 +51,11 @@ Do **not** commit a `.env` file. Add these in Vercel → Project → Settings �
 | `GROK_AUTH_ISSUER` | Defaults to `https://auth.grok.me` (Grok sandbox broker only). |
 | `GROK_AUTH_CLIENT_ID` | Per-app broker client (Grok sandbox). |
 | `GROK_AUTH_CLIENT_SECRET` | Per-app broker secret (Grok sandbox). |
-| `XAI_API_KEY` | Grok API for assistant / OCR. Without it, the assistant still answers from the project ledger. |
+| `XAI_API_KEY` | Preferred LLM for Ask the twin (xAI Grok). |
+| `OPENAI_API_KEY` | Fallback LLM (gpt-4o-mini). |
+| `GEMINI_API_KEY` | Fallback LLM (Gemini). |
+
+Without any AI key the twin still answers from the project ledger (cement left, budget, crew, next steps).
 | `VITE_AUTH_ENABLED` | **Do not set to `false`** on Vercel or every visitor is rejected. |
 
 ### Google Cloud console

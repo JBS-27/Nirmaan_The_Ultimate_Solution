@@ -20,6 +20,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { RingStat } from "@/components/ring-stat";
+import { SitePhoto } from "@/components/site-photo";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -49,6 +51,7 @@ import {
   upsertMaterial,
 } from "@/lib/server/site";
 import type { ProjectSnapshot } from "@/lib/types";
+import { coverFor } from "@/lib/site-media";
 import { useAsync } from "@/lib/use-async";
 import { cn, daysBetween, todayISO } from "@/lib/utils";
 
@@ -99,18 +102,28 @@ function ProjectPage() {
     );
   }
 
+  const hero = snap.photos[0]?.imageUrl ?? coverFor(snap.project.name);
+
   return (
     <div>
-      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <div>
-          <p className="flex items-center gap-1 text-sm text-muted">
+      <div className="group mb-5 overflow-hidden rounded-2xl shadow-[var(--shadow-card)]">
+        <SitePhoto src={hero} alt={snap.project.name} className="h-48 md:h-64">
+          <p className="flex items-center gap-1 text-sm text-cream/80">
             <MapPin className="size-3.5" />
             {snap.project.city}
             {snap.project.address ? ` · ${snap.project.address}` : ""}
           </p>
-          <h1 className="mt-1 font-display text-3xl font-medium tracking-tight md:text-4xl">
+          <h1 className="mt-1 font-display text-3xl font-medium tracking-tight md:text-5xl">
             {snap.project.name}
           </h1>
+        </SitePhoto>
+      </div>
+      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className="text-sm text-muted">
+            {snap.project.plotSqft.toLocaleString("en-IN")} sqft · {snap.project.floors} floors ·{" "}
+            {snap.project.projectType.replace("_", " ")}
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Badge tone={snap.remaining < 0 ? "danger" : "forest"}>{snap.project.status}</Badge>
@@ -165,25 +178,55 @@ function Overview({ snap }: { snap: ProjectSnapshot }) {
   const daysLeft = daysBetween(todayISO(), snap.project.targetDate);
   const cement = materialLeft(snap, "Cement");
   const steel = materialLeft(snap, "Steel");
+  const done = snap.phases.filter((p) => p.status === "done").length;
+  const presentToday = snap.attendance.filter((a) => a.workDate === todayISO() && a.present).length;
+  const recentBills = snap.bills.slice(0, 4);
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Stat label="Progress" value={pct(snap.progress)} hint={`${snap.phases.filter((p) => p.status === "done").length} of ${snap.phases.length} phases`} />
-        <Stat label="Spent" value={compactMoney(snap.spent)} hint={`of ${money(snap.project.budget)}`} />
-        <Stat label="Remaining" value={compactMoney(snap.remaining)} hint={snap.remaining < 0 ? "Over envelope" : "In envelope"} danger={snap.remaining < 0} />
-        <Stat label="Days to handover" value={String(daysLeft)} hint={daysLeft < 0 ? "Past target" : "On the clock"} danger={daysLeft < 0} />
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <Stat
-          label="Cement left"
-          value={qty(cement.left, cement.unit || "bags")}
-          hint={`${qty(cement.received)} received of ${qty(cement.needed)}`}
-        />
-        <Stat
-          label="Steel left"
-          value={qty(steel.left, steel.unit || "kg")}
-          hint={`${qty(steel.received)} received of ${qty(steel.needed)}`}
-        />
+      <div className="grid gap-3 md:grid-cols-[1.1fr_0.9fr]">
+        <Card className="flex flex-col justify-between p-5">
+          <RingStat
+            value={snap.progress}
+            label="Site progress"
+            hint={`${done} of ${snap.phases.length} phases closed · ${daysLeft} days to handover`}
+          />
+          <div className="mt-5 grid grid-cols-2 gap-3">
+            <Stat label="Spent" value={compactMoney(snap.spent)} hint={`of ${money(snap.project.budget)}`} />
+            <Stat
+              label="Remaining"
+              value={compactMoney(snap.remaining)}
+              hint={snap.remaining < 0 ? "Over envelope" : "In envelope"}
+              danger={snap.remaining < 0}
+            />
+          </div>
+        </Card>
+        <Card className="p-5">
+          <p className="text-xs tracking-wide text-muted uppercase">Cash vs envelope</p>
+          <div className="mt-4 h-3 overflow-hidden rounded-full bg-bg-sunken">
+            <div
+              className="h-full rounded-full bg-forest transition-[width] duration-500"
+              style={{
+                width: `${Math.min(100, snap.project.budget ? (snap.spent / snap.project.budget) * 100 : 0)}%`,
+              }}
+            />
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <p className="text-xs text-muted">Cement left</p>
+              <p className="font-display text-xl tabular-nums">{qty(cement.left, cement.unit || "bags")}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted">Steel left</p>
+              <p className="font-display text-xl tabular-nums">{qty(steel.left, steel.unit || "kg")}</p>
+            </div>
+          </div>
+          <Button asChild className="mt-5 w-full" variant="outline">
+            <Link to="/app/assistant" search={{ projectId: String(snap.project.id) }}>
+              <MessageSquare className="size-4" />
+              Ask how much is left
+            </Link>
+          </Button>
+        </Card>
       </div>
 
       {snap.risks.length > 0 ? (
@@ -205,50 +248,98 @@ function Overview({ snap }: { snap: ProjectSnapshot }) {
         </Card>
       ) : null}
 
-      <Card className="p-4">
-        <p className="mb-3 text-xs tracking-wide text-muted uppercase">Phases</p>
-        <div className="space-y-3">
-          {snap.phases.map((p) => (
-            <div key={p.id}>
-              <div className="mb-1 flex items-center justify-between text-sm">
-                <span>{p.name}</span>
-                <span className="text-xs text-muted tabular-nums">
-                  {formatShort(p.startDate)} – {formatShort(p.endDate)} · {pct(p.progress)}
-                </span>
+      <Card className="p-5">
+        <p className="mb-4 text-xs tracking-wide text-muted uppercase">Eight phases</p>
+        <ol className="grid gap-3 sm:grid-cols-2">
+          {snap.phases.map((p, i) => (
+            <li key={p.id} className="rounded-xl bg-bg p-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <span className="text-xs text-faint tabular-nums">{String(i + 1).padStart(2, "0")}</span>
+                <Badge tone={p.status === "done" ? "ok" : p.status === "active" ? "forest" : "neutral"}>
+                  {p.status}
+                </Badge>
               </div>
-              <Progress value={p.progress} />
-            </div>
+              <p className="text-sm font-medium">{p.name}</p>
+              <Progress value={p.progress} className="mt-2" />
+              <p className="mt-1 text-xs text-muted tabular-nums">
+                {formatShort(p.startDate)} – {formatShort(p.endDate)} · {pct(p.progress)}
+              </p>
+            </li>
           ))}
-        </div>
+        </ol>
       </Card>
 
       <div className="grid gap-3 md:grid-cols-2">
-        <Card className="p-4">
-          <p className="mb-3 text-xs tracking-wide text-muted uppercase">Materials still needed</p>
+        <Card className="p-5">
+          <p className="mb-3 text-xs tracking-wide text-muted uppercase">Live BOQ — still needed</p>
           <ul className="space-y-2">
-            {snap.materials.slice(0, 6).map((m) => {
+            {snap.materials.slice(0, 7).map((m) => {
               const left = Math.max(0, m.qtyNeeded - m.qtyUsed);
               return (
-                <li key={m.id} className="flex items-center justify-between text-sm">
-                  <span className="truncate pr-3">{m.name}</span>
+                <li key={m.id} className="flex items-center justify-between gap-3 text-sm">
+                  <span className="truncate">{m.name}</span>
                   <span className="shrink-0 tabular-nums text-muted">{qty(left, m.unit)}</span>
                 </li>
               );
             })}
           </ul>
         </Card>
-        <Card className="p-4">
-          <p className="mb-3 text-xs tracking-wide text-muted uppercase">Crew pending</p>
-          <p className="font-display text-3xl tracking-tight tabular-nums">{money(snap.crewPending)}</p>
-          <p className="mt-1 text-sm text-muted">{snap.workers.length} people on the books</p>
-          {snap.photos[0] ? (
-            <img
-              src={snap.photos[0].imageUrl}
-              alt={snap.photos[0].caption ?? "Latest site photo"}
-              className="mt-4 h-32 w-full rounded-lg object-cover outline outline-1 -outline-offset-1 outline-ink/10"
-            />
-          ) : null}
+        <Card className="p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs tracking-wide text-muted uppercase">Crew</p>
+              <p className="mt-1 font-display text-3xl tracking-tight tabular-nums">{money(snap.crewPending)}</p>
+              <p className="mt-1 text-sm text-muted">
+                {presentToday} present today · {snap.workers.length} on the books
+              </p>
+            </div>
+            <Users className="size-5 text-forest" />
+          </div>
+          <ul className="mt-4 space-y-2">
+            {snap.workers.slice(0, 5).map((w) => (
+              <li key={w.id} className="flex items-center justify-between text-sm">
+                <span>{w.name}</span>
+                <span className="text-muted">{w.skill}</span>
+              </li>
+            ))}
+          </ul>
         </Card>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-2">
+        <Card className="p-5">
+          <p className="mb-3 text-xs tracking-wide text-muted uppercase">Recent bills</p>
+          {recentBills.length === 0 ? (
+            <p className="text-sm text-muted">No bills yet — add one from the Bills tab.</p>
+          ) : (
+            <ul className="space-y-3">
+              {recentBills.map((b) => (
+                <li key={b.id} className="flex items-center justify-between gap-3 text-sm">
+                  <div>
+                    <p className="font-medium">{b.vendor}</p>
+                    <p className="text-xs text-muted">{b.category}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="tabular-nums">{money(b.amount)}</p>
+                    <p className={cn("text-xs", b.paid ? "text-ok" : "text-warn")}>{b.paid ? "Paid" : "Due"}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+        <div className="grid grid-cols-2 gap-3">
+          {(snap.photos.length ? snap.photos : [{ id: 0, imageUrl: coverFor(snap.project.name), caption: "Site" }])
+            .slice(0, 4)
+            .map((ph) => (
+              <SitePhoto
+                key={ph.id}
+                src={ph.imageUrl}
+                alt={ph.caption ?? "Site photo"}
+                className="h-28 rounded-xl"
+              />
+            ))}
+        </div>
       </div>
     </div>
   );

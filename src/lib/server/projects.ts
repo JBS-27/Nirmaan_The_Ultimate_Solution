@@ -18,7 +18,9 @@ import {
   mapProject,
   mapWorker,
 } from "./map";
+import { seedRichSample } from "./demo-seed";
 import { ensureCatalog } from "./seed";
+import { DEMO_SITE_NAME } from "@/lib/site-media";
 
 async function insertEstimate(
   sql: Awaited<ReturnType<typeof getSql>>,
@@ -257,111 +259,68 @@ type CreateInput = {
   rooms?: RoomInput[];
 };
 
+async function plantProject(userId: string, data: CreateInput) {
+  const sql = await getSql();
+  const city = findCity(data.city);
+  const plot = Math.max(200, Math.round(data.plotSqft));
+  const floors = Math.max(1, Math.min(8, Math.round(data.floors)));
+  const budget = Math.max(100000, Math.round(data.budget));
+  const inserted = await sql<{ id: number }>`
+    insert into projects (
+      owner_id, name, city, address, lat, lng, project_type, plot_sqft, floors,
+      budget, start_date, target_date, requirements, status
+    ) values (
+      ${userId}, ${data.name.trim() || "Untitled home"}, ${city.name},
+      ${data.address ?? null}, ${city.lat}, ${city.lng}, ${data.projectType},
+      ${plot}, ${floors}, ${budget}, ${data.startDate}, ${data.targetDate},
+      ${data.requirements ?? null}, 'active'
+    )
+    returning id
+  `;
+  const id = inserted[0]!.id;
+  const est = await insertEstimate(
+    sql, id, data.projectType, plot, floors, city.name, data.startDate, data.targetDate, budget,
+  );
+
+  if (data.rooms && data.rooms.length > 0) {
+    const extra = estimateRooms(data.rooms, city.name);
+    for (const m of extra.extras) {
+      const [ph] = await sql<{ id: number }>`
+        select id from phases where project_id = ${id} and name ilike ${"%" + (m.phaseKey === "finishing" ? "Finish" : m.phaseKey) + "%"}
+        order by sort_order limit 1
+      `;
+      await sql`
+        insert into materials (
+          project_id, phase_id, name, category, unit, qty_needed, qty_ordered, qty_received, qty_used, unit_price, status
+        ) values (
+          ${id}, ${ph?.id ?? null}, ${m.name}, ${m.category}, ${m.unit}, ${m.qtyNeeded},
+          0, 0, 0, ${m.unitPrice}, 'needed'
+        )
+      `;
+    }
+  }
+
+  if (data.sample) {
+    await seedRichSample(sql, id, userId, data.startDate);
+  }
+
+  await sql`
+    insert into notifications (user_id, title, body, href)
+    values (
+      ${userId},
+      ${"Project created: " + (data.name.trim() || "Untitled home")},
+      ${est.notes[0] ?? "Template, phases and BOQ are ready."},
+      ${"/app/projects/" + id}
+    )
+  `;
+
+  return { id, estimatedCost: est.estimatedCost, builtUpSqft: est.builtUpSqft, notes: est.notes };
+}
+
 export const createProject = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((input: CreateInput) => input)
-  .handler(async ({ context, data }) => {
-    const sql = await getSql();
-    const city = findCity(data.city);
-    const plot = Math.max(200, Math.round(data.plotSqft));
-    const floors = Math.max(1, Math.min(8, Math.round(data.floors)));
-    const budget = Math.max(100000, Math.round(data.budget));
-    const inserted = await sql<{ id: number }>`
-      insert into projects (
-        owner_id, name, city, address, lat, lng, project_type, plot_sqft, floors,
-        budget, start_date, target_date, requirements, status
-      ) values (
-        ${context.userId}, ${data.name.trim() || "Untitled home"}, ${city.name},
-        ${data.address ?? null}, ${city.lat}, ${city.lng}, ${data.projectType},
-        ${plot}, ${floors}, ${budget}, ${data.startDate}, ${data.targetDate},
-        ${data.requirements ?? null}, 'active'
-      )
-      returning id
-    `;
-    const id = inserted[0]!.id;
-    const est = await insertEstimate(
-      sql, id, data.projectType, plot, floors, city.name, data.startDate, data.targetDate, budget,
-    );
-
-    if (data.rooms && data.rooms.length > 0) {
-      const extra = estimateRooms(data.rooms, city.name);
-      for (const m of extra.extras) {
-        const [ph] = await sql<{ id: number }>`
-          select id from phases where project_id = ${id} and name ilike ${"%" + (m.phaseKey === "finishing" ? "Finish" : m.phaseKey) + "%"}
-          order by sort_order limit 1
-        `;
-        await sql`
-          insert into materials (
-            project_id, phase_id, name, category, unit, qty_needed, qty_ordered, qty_received, qty_used, unit_price, status
-          ) values (
-            ${id}, ${ph?.id ?? null}, ${m.name}, ${m.category}, ${m.unit}, ${m.qtyNeeded},
-            0, 0, 0, ${m.unitPrice}, 'needed'
-          )
-        `;
-      }
-    }
-
-    if (data.sample) {
-      const [ph0] = await sql<{ id: number }>`select id from phases where project_id = ${id} order by sort_order limit 1`;
-      await sql`update phases set progress = 28, status = 'active' where project_id = ${id} and sort_order = 0`;
-      await sql`update phases set progress = 10, status = 'active' where project_id = ${id} and sort_order = 1`;
-      await sql`
-        update materials set qty_ordered = qty_needed * 0.6, qty_received = qty_needed * 0.4, status = 'partial'
-        where project_id = ${id} and category in ('Cement','Steel','Aggregates')
-      `;
-      await sql`
-        insert into bills (project_id, vendor, amount, bill_date, category, notes, paid)
-        values
-          (${id}, 'Annapurna Cement Depot', 148000, ${data.startDate}, 'materials', 'OPC 53 — first lot', true),
-          (${id}, 'Steel Mart Jayanagar', 212400, ${addDays(data.startDate, 4)}, 'materials', 'TMT 12mm', false)
-      `;
-      await sql`
-        insert into workers (project_id, name, skill, daily_rate, phone, status) values
-          (${id}, 'Nagesh', 'Mason', 1200, null, 'active'),
-          (${id}, 'Sita', 'Helper', 650, null, 'active'),
-          (${id}, 'Imran', 'Bar bender', 1100, null, 'active')
-      `;
-      const wrows = await sql<{ id: number }>`select id from workers where project_id = ${id}`;
-      for (const w of wrows) {
-        await sql`
-          insert into attendance (worker_id, project_id, work_date, present, hours, method)
-          values (${w.id}, ${id}, ${todayISO()}, true, 8, 'manual')
-          on conflict (worker_id, work_date) do nothing
-        `;
-      }
-      await sql`
-        insert into photos (project_id, phase_id, caption, image_url, annotation)
-        values
-          (${id}, ${ph0?.id ?? null}, 'Site cleared, columns marked', '/images/hero-site.svg', 'Foundation setting-out looks complete. Keep cover blocks ready before steel.'),
-          (${id}, ${ph0?.id ?? null}, 'Material yard — first lots', '/images/materials.svg', 'Cement stacked off the ground. Steel needs a cover to avoid rust staining.')
-      `;
-      await sql`
-        insert into messages (project_id, author_id, author_name, body)
-        values (${id}, ${context.userId}, 'You', 'Sample site is live. Invite your engineer when the soil report lands.')
-      `;
-      await sql`
-        insert into change_orders (project_id, title, detail, cost_delta, days_delta, status)
-        values (${id}, 'Add terrace waterproofing layer', 'After first rains, extra coat recommended.', 42000, 4, 'proposed')
-      `;
-      await sql`
-        insert into daily_logs (project_id, log_date, weather, workers_count, notes, issues)
-        values (${id}, ${todayISO()}, 'Clear', 3, 'Setting-out complete. Steel cover blocks arriving tomorrow.', null)
-        on conflict (project_id, log_date) do nothing
-      `;
-    }
-
-    await sql`
-      insert into notifications (user_id, title, body, href)
-      values (
-        ${context.userId},
-        ${"Project created: " + (data.name.trim() || "Untitled home")},
-        ${est.notes[0] ?? "Template, phases and BOQ are ready."},
-        ${"/app/projects/" + id}
-      )
-    `;
-
-    return { id, estimatedCost: est.estimatedCost, builtUpSqft: est.builtUpSqft, notes: est.notes };
-  });
+  .handler(async ({ context, data }) => plantProject(context.userId, data));
 
 export const updatePhase = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
@@ -376,6 +335,31 @@ export const updatePhase = createServerFn({ method: "POST" })
       where id = ${data.phaseId} and project_id = ${data.projectId}
     `;
     return { ok: true as const };
+  });
+
+export const loadDemoProject = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const sql = await getSql();
+    const existing = await sql<{ id: number }>`
+      select id from projects where owner_id = ${context.userId} and name = ${DEMO_SITE_NAME} order by id desc limit 1
+    `;
+    if (existing[0]) return { id: Number(existing[0].id), created: false as const };
+    const start = todayISO();
+    const res = await plantProject(context.userId, {
+      name: DEMO_SITE_NAME,
+      city: "Bengaluru",
+      address: "4th Block, Koramangala",
+      projectType: "new_build",
+      plotSqft: 2400,
+      floors: 2,
+      budget: 4200000,
+      startDate: start,
+      targetDate: addDays(start, 270),
+      requirements: "3 BHK independent house, vastu-aware, covered parking, terrace waterproofing.",
+      sample: true,
+    });
+    return { id: res.id, created: true as const };
   });
 
 export const previewEstimate = createServerFn({ method: "POST" })

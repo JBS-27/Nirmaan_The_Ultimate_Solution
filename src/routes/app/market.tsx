@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tab, TabBar } from "@/components/ui/tabs";
 import { CITIES } from "@/lib/constants";
 import { money } from "@/lib/format";
+import { portraitFor } from "@/lib/site-media";
 import { listProfessionals, listSuppliers, matchProfessionals, placeOrder } from "@/lib/server/market";
 import { listProjects } from "@/lib/server/projects";
 import { useAsync } from "@/lib/use-async";
@@ -139,10 +140,17 @@ function Market() {
               <Link key={p.id} to="/app/market/$proId" params={{ proId: String(p.id) }}>
                 <Card className="h-full p-5 transition-[box-shadow] hover:shadow-[var(--shadow-card-hover)]">
                   <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-xs tracking-wide text-forest uppercase">{p.role}</p>
-                      <h2 className="mt-1 font-display text-xl tracking-tight">{p.name}</h2>
-                      <p className="text-sm text-muted">{p.city}</p>
+                    <div className="flex items-start gap-3">
+                      <img
+                        src={portraitFor(p.name)}
+                        alt=""
+                        className="size-12 rounded-full object-cover outline outline-1 -outline-offset-1 outline-line"
+                      />
+                      <div>
+                        <p className="text-xs tracking-wide text-forest uppercase">{p.role}</p>
+                        <h2 className="mt-1 font-display text-xl tracking-tight">{p.name}</h2>
+                        <p className="text-sm text-muted">{p.city}</p>
+                      </div>
                     </div>
                     {p.verified ? <Badge tone="forest">Verified</Badge> : null}
                   </div>
