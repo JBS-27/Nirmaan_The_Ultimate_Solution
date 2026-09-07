@@ -1,5 +1,5 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, Navigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { RedirectToSignIn } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { Logo } from "@/components/logo";
@@ -7,42 +7,69 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, NativeSelect } from "@/components/ui/field";
 import { CITIES, ROLES } from "@/lib/constants";
-import { saveProfile } from "@/lib/server/profile";
+import { markOnboardedLocally, readOnboardedLocally } from "@/lib/onboarding-flag";
+import { getMyProfile, saveProfile } from "@/lib/server/profile";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/onboarding")({ component: Onboarding });
 
 function Onboarding() {
   const { user, isPending } = useCurrentUserState();
-  const navigate = useNavigate();
   const [role, setRole] = useState("owner");
   const [displayName, setDisplayName] = useState(user?.displayName ?? "");
   const [city, setCity] = useState("Bengaluru");
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [alreadyOnboarded, setAlreadyOnboarded] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    if (readOnboardedLocally(user.id)) setAlreadyOnboarded(true);
+    if (user.displayName) setDisplayName((cur) => cur || user.displayName || "");
+    getMyProfile()
+      .then((p) => {
+        if (p.onboarded) {
+          markOnboardedLocally(user.id);
+          setAlreadyOnboarded(true);
+        }
+        if (p.displayName) setDisplayName(p.displayName);
+        if (p.role) setRole(p.role);
+        if (p.city) setCity(p.city);
+        if (p.phone) setPhone(p.phone);
+      })
+      .catch(() => undefined);
+  }, [user]);
 
   if (isPending) return null;
   if (!user) return <RedirectToSignIn />;
+  if (alreadyOnboarded) return <Navigate to="/app" replace />;
+
+  const userId = user.id;
+  const fallbackName = user.displayName;
+  const photoUrl = user.profileImageUrl;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      await saveProfile({
+      const saved = await saveProfile({
         data: {
           role,
-          displayName: displayName.trim() || user?.displayName || "Builder",
+          displayName: displayName.trim() || fallbackName || "Builder",
           city,
           phone: phone || undefined,
-          photoUrl: user?.profileImageUrl ?? undefined,
+          photoUrl: photoUrl ?? undefined,
         },
       });
-      navigate({ to: "/app" });
+      if (!saved.onboarded) {
+        throw new Error("Profile saved, but onboarding did not complete. Try again.");
+      }
+      markOnboardedLocally(userId);
+      window.location.replace("/app");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save profile");
-    } finally {
       setBusy(false);
     }
   }

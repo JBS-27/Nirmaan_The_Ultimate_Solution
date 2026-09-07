@@ -11,6 +11,7 @@ import {
 import { useEffect, useState } from "react";
 import { RedirectToSignIn, UserButton } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { markOnboardedLocally, readOnboardedLocally } from "@/lib/onboarding-flag";
 import { getMyProfile, listNotifications, markNotificationsRead } from "@/lib/server/profile";
 import { Logo } from "./logo";
 import { Badge } from "./ui/badge";
@@ -31,25 +32,37 @@ export function AppShell() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [onboarded, setOnboarded] = useState<boolean | null>(null);
   const [role, setRole] = useState<string>("owner");
+  const [profileError, setProfileError] = useState<string | null>(null);
   const [unread, setUnread] = useState(0);
   const [openNotes, setOpenNotes] = useState(false);
   const [notes, setNotes] = useState<{ id: number; title: string; body: string; href: string | null }[]>([]);
 
   useEffect(() => {
     if (!user) return;
+    let cancelled = false;
+    setProfileError(null);
     getMyProfile()
       .then((p) => {
-        setOnboarded(p.onboarded);
+        if (cancelled) return;
+        if (p.onboarded) markOnboardedLocally(user.id);
+        setOnboarded(p.onboarded || readOnboardedLocally(user.id));
         setRole(p.role);
       })
-      .catch(() => setOnboarded(false));
+      .catch((err) => {
+        if (cancelled) return;
+        setProfileError(err instanceof Error ? err.message : "Could not load your profile");
+      });
     listNotifications()
       .then((n) => {
+        if (cancelled) return;
         setNotes(n);
         setUnread(n.filter((x) => !x.read).length);
       })
       .catch(() => undefined);
-  }, [user, pathname]);
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   if (isPending) {
     return (
@@ -66,6 +79,17 @@ export function AppShell() {
   }
 
   if (!user) return <RedirectToSignIn to="/login" />;
+  if (profileError) {
+    return (
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-3 bg-bg px-4 text-center">
+        <p className="font-display text-2xl">Couldn’t open your site book</p>
+        <p className="max-w-sm text-sm text-muted">{profileError}</p>
+        <Button type="button" onClick={() => window.location.reload()}>
+          Try again
+        </Button>
+      </div>
+    );
+  }
   if (onboarded === null) {
     return (
       <div className="flex min-h-dvh flex-col bg-bg">
@@ -79,7 +103,7 @@ export function AppShell() {
       </div>
     );
   }
-  if (!onboarded) return <Navigate to="/onboarding" />;
+  if (!onboarded && !readOnboardedLocally(user.id)) return <Navigate to="/onboarding" replace />;
 
   return (
     <div className="min-h-dvh bg-bg">

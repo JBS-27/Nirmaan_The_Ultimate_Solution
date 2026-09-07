@@ -26,7 +26,7 @@ export function mapProfile(r: Record<string, unknown>): Profile {
     city: r.city ? String(r.city) : null,
     bio: r.bio ? String(r.bio) : null,
     languages: String(r.languages ?? "English, Hindi"),
-    onboarded: Boolean(r.onboarded),
+    onboarded: r.onboarded === true || r.onboarded === "t" || r.onboarded === "true",
   };
 }
 

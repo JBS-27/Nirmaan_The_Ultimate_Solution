@@ -5,7 +5,7 @@ import { mapProfile } from "./map";
 import { ensureCatalog } from "./seed";
 import type { Profile } from "@/lib/types";
 
-export const getMyProfile = createServerFn({ method: "GET" })
+export const getMyProfile = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .handler(async ({ context }): Promise<Profile> => {
     const sql = await getSql();
@@ -31,11 +31,18 @@ export const getMyProfile = createServerFn({ method: "GET" })
     }
 
     const name = email?.split("@")[0] || "Builder";
-    const inserted = await sql`
-      insert into profiles (user_id, display_name, email) values (${context.userId}, ${name}, ${email})
-      returning *
-    `;
-    return mapProfile(inserted[0]!);
+    return {
+      userId: context.userId,
+      role: "owner",
+      displayName: name,
+      email,
+      photoUrl: null,
+      phone: null,
+      city: null,
+      bio: null,
+      languages: "English, Hindi",
+      onboarded: false,
+    };
   });
 
 export const saveProfile = createServerFn({ method: "POST" })
@@ -51,7 +58,7 @@ export const saveProfile = createServerFn({ method: "POST" })
   }) => input)
   .handler(async ({ context, data }): Promise<Profile> => {
     const sql = await getSql();
-    const name = data.displayName.trim() || "Builder";
+    const name = (data.displayName ?? "").trim() || "Builder";
     let email: string | null = null;
     try {
       const { getSessionUser } = await import("@/lib/auth/verify.server");
@@ -79,7 +86,11 @@ export const saveProfile = createServerFn({ method: "POST" })
       returning *
     `;
     const profile = mapProfile(rows[0]!);
-    await syncMarketplaceListing(sql, context.userId, profile);
+    try {
+      await syncMarketplaceListing(sql, context.userId, profile);
+    } catch {
+      /* profile is saved; marketplace listing can catch up later */
+    }
     return profile;
   });
 
@@ -129,7 +140,7 @@ async function syncMarketplaceListing(sql: Sql, userId: string, profile: Profile
   }
 }
 
-export const listNotifications = createServerFn({ method: "GET" })
+export const listNotifications = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
     const sql = await getSql();
